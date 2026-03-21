@@ -16,7 +16,6 @@ import {
   PAGE_SIZE,
   ANSI,
 } from '../interactive.js';
-import type {InteractiveState} from '../interactive.js';
 import type {Finding, FindingsReport, Severity} from '../../findings/types.js';
 
 // ---------------------------------------------------------------------------

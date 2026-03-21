@@ -9,7 +9,7 @@ import {
   getTemplateNames,
 } from '../templates.js';
 import type {ReportTemplate} from '../templates.js';
-import type {Finding, FindingsReport, Severity} from '../../findings/types.js';
+import type {Finding, FindingsReport} from '../../findings/types.js';
 
 // ---------------------------------------------------------------------------
 // Test helpers
