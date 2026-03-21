@@ -11,3 +11,4 @@ export type {
 
 export {createGateway, parseModelString} from './gateway.js';
 export {createGeminiProvider, GeminiProviderError} from './gemini.js';
+export {createOpenAIProvider, OpenAIProviderError} from './openai.js';
