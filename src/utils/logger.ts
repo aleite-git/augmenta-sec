@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import {formatError} from '../errors/handler.js';
 
 export const logger = {
   info(msg: string) {
@@ -15,6 +16,11 @@ export const logger = {
 
   error(msg: string) {
     console.error(chalk.red('x'), msg);
+  },
+
+  /** Log a structured error with user-friendly formatting. */
+  errorDetail(error: unknown) {
+    console.error(chalk.red('x'), formatError(error));
   },
 
   debug(msg: string) {
