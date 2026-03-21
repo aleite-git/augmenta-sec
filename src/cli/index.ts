@@ -31,8 +31,9 @@ export function createCli(): Command {
     .command('review')
     .description('Review a pull request for security issues')
     .argument('[pr]', 'PR number or URL')
-    .action(async (pr?: string) => {
-      await reviewCommand(pr);
+    .option('--all', 'review all open PRs on the repository')
+    .action(async (pr?: string, options?: {all?: boolean}) => {
+      await reviewCommand(pr, {all: options?.all});
     });
 
   return program;

@@ -1,0 +1,63 @@
+# AugmentaSec GitLab CI Security Review Template
+#
+# Include this template in your .gitlab-ci.yml to add AI-powered
+# security review to merge request pipelines.
+#
+# Usage:
+#   include:
+#     - remote: 'https://raw.githubusercontent.com/augmenta-sec/augmenta-sec/main/.gitlab-ci-template.yml'
+#
+#   # Override variables as needed:
+#   variables:
+#     ASEC_LLM_PROVIDER: "anthropic"
+#     ASEC_SEVERITY_THRESHOLD: "high"
+#
+#   # Store secrets in GitLab CI/CD Variables (masked):
+#   #   ASEC_LLM_API_KEY -- your LLM provider API key
+#
+# The security-review job runs only on merge request pipelines and
+# posts findings as MR notes.
+
+variables:
+  ASEC_LLM_PROVIDER:
+    value: "anthropic"
+    description: "LLM provider (anthropic, gemini, mistral, ollama, openai)"
+  ASEC_SEVERITY_THRESHOLD:
+    value: "high"
+    description: "Minimum severity to flag as blocking (critical, high, medium, low, informational)"
+  ASEC_AUTO_APPROVE:
+    value: "false"
+    description: "Auto-approve MRs with no findings above the severity threshold"
+  ASEC_NODE_IMAGE:
+    value: "node:20-alpine"
+    description: "Docker image for the review job"
+
+stages:
+  - security-review
+
+augmenta-sec-review:
+  stage: security-review
+  image: ${ASEC_NODE_IMAGE}
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - when: never
+  variables:
+    CI_MERGE_REQUEST_IID: "${CI_MERGE_REQUEST_IID}"
+    CI_PROJECT_PATH: "${CI_PROJECT_PATH}"
+  before_script:
+    - npm install -g augmenta-sec
+  script:
+    - |
+      augmenta-sec review "$CI_MERGE_REQUEST_IID" \
+        --provider "${ASEC_LLM_PROVIDER}" \
+        --severity-threshold "${ASEC_SEVERITY_THRESHOLD}" \
+        --auto-approve "${ASEC_AUTO_APPROVE}"
+  allow_failure: true
+  artifacts:
+    when: always
+    paths:
+      - augmenta-sec-report.json
+    expire_in: 30 days
+    reports:
+      codequality: augmenta-sec-report.json

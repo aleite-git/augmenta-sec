@@ -1,0 +1,31 @@
+name: 'AugmentaSec Security Review'
+description: 'AI-powered security review for pull requests'
+author: 'AugmentaSec'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access (e.g. secrets.GITHUB_TOKEN)'
+    required: true
+  llm-provider:
+    description: 'LLM provider to use for analysis (anthropic, gemini, mistral, ollama, openai)'
+    required: false
+    default: 'anthropic'
+  llm-api-key:
+    description: 'API key for the LLM provider'
+    required: true
+  severity-threshold:
+    description: 'Minimum severity to flag as blocking (critical, high, medium, low, informational)'
+    required: false
+    default: 'high'
+  auto-approve:
+    description: 'Auto-approve PRs with no findings above the severity threshold'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'node20'
+  main: 'dist/review/github-action.js'
