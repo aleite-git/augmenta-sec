@@ -35,7 +35,7 @@ function mockResolveSequence(stdouts: string[]) {
   callCount = 0;
   mockExecFile.mockImplementation(
     ((...args: unknown[]) => {
-      const cb = args[args.length - 1] as Function;
+      const cb = args[args.length - 1] as (...cbArgs: unknown[]) => void;
       if (typeof cb === 'function') {
         const idx = callCount++;
         cb(null, stdouts[idx] ?? '', '');
@@ -53,7 +53,7 @@ function mockReject(error: {
 }) {
   mockExecFile.mockImplementation(
     ((...args: unknown[]) => {
-      const cb = args[args.length - 1] as Function;
+      const cb = args[args.length - 1] as (...cbArgs: unknown[]) => void;
       if (typeof cb === 'function') {
         const err = Object.assign(new Error('command failed'), {
           code: error.code,

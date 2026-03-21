@@ -4,7 +4,6 @@ import {
   levenshteinDistance,
   stringSimilarity,
 } from '../dedup.js';
-import type {DeduplicationStrategy} from '../dedup.js';
 import type {Finding} from '../types.js';
 
 // ---------------------------------------------------------------------------

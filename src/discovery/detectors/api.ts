@@ -27,7 +27,7 @@ const GRAPHQL_INDICATORS = [
   '**/typeDefs.ts', '**/typeDefs.js',
 ];
 
-const TRPC_INDICATORS = [
+const _TRPC_INDICATORS = [
   '**/trpc.ts', '**/trpc.js',
   '**/*router*.ts', '**/*router*.js',
 ];

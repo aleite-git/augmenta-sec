@@ -13,7 +13,7 @@ const mockExecFile = vi.mocked(execFile);
 function mockResolve(stdout: string, stderr = '') {
   mockExecFile.mockImplementation(
     ((...args: unknown[]) => {
-      const cb = args[args.length - 1] as Function;
+      const cb = args[args.length - 1] as (...cbArgs: unknown[]) => void;
       if (typeof cb === 'function') cb(null, stdout, stderr);
     }) as typeof execFile,
   );
@@ -27,7 +27,7 @@ function mockReject(error: {
 }) {
   mockExecFile.mockImplementation(
     ((...args: unknown[]) => {
-      const cb = args[args.length - 1] as Function;
+      const cb = args[args.length - 1] as (...cbArgs: unknown[]) => void;
       if (typeof cb === 'function') {
         const err = Object.assign(new Error('command failed'), {
           code: error.code,
