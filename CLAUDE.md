@@ -47,6 +47,7 @@ Markdown files are the sole tracking system:
 - Strict TypeScript (`strict: true`)
 - All detectors run in parallel — keep them independent
 - Provider interfaces before implementations — design the contract first
+- **Test coverage: 80%+ lines/branches on all new and changed code — mandatory. PRs below this threshold are blocked.**
 
 ## Commands
 
