@@ -31,7 +31,7 @@ import {handleGitHubWebhook, handleGitLabWebhook} from './webhooks.js';
 // ---------------------------------------------------------------------------
 
 export interface DaemonConfig {
-  /** Path to SQLite database file. Use `:memory:` for ephemeral store. */
+  /** Ignored (in-memory store). Kept for API compatibility. */
   dbPath: string;
   /** Semantic version string reported by /health. */
   version: string;

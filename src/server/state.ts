@@ -1,12 +1,11 @@
 /**
- * Persistent state store backed by SQLite (better-sqlite3).
+ * In-memory state store for server mode.
  *
- * Tables: scan_queue, webhook_log, schedules, scan_history.
+ * Provides scan queue, webhook log, schedule, and scan history storage
+ * using plain JavaScript data structures (no external dependencies).
  *
  * @module ASEC-083
  */
-
-import Database from 'better-sqlite3';
 
 // ---------------------------------------------------------------------------
 // Row types
@@ -83,206 +82,185 @@ export interface StateStore {
   listScanHistory(limit?: number): ScanHistoryRow[];
   totalFindingsCount(): number;
 
-  /** Closes the underlying database connection. */
+  /** Closes the underlying store (no-op for in-memory). */
   close(): void;
 }
 
 // ---------------------------------------------------------------------------
-// Schema DDL
+// Helpers
 // ---------------------------------------------------------------------------
 
-const SCHEMA_DDL = `
-CREATE TABLE IF NOT EXISTS scan_queue (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  repo       TEXT    NOT NULL,
-  ref        TEXT    NOT NULL,
-  trigger    TEXT    NOT NULL,
-  status     TEXT    NOT NULL DEFAULT 'pending',
-  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS webhook_log (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  source      TEXT NOT NULL,
-  event       TEXT NOT NULL,
-  payload     TEXT NOT NULL,
-  received_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS schedules (
-  id         TEXT PRIMARY KEY,
-  cron       TEXT    NOT NULL,
-  task       TEXT    NOT NULL,
-  enabled    INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS scan_history (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  repo           TEXT    NOT NULL,
-  ref            TEXT    NOT NULL,
-  findings_count INTEGER NOT NULL DEFAULT 0,
-  duration_ms    INTEGER NOT NULL DEFAULT 0,
-  status         TEXT    NOT NULL,
-  completed_at   TEXT    NOT NULL DEFAULT (datetime('now'))
-);
-`;
+function nowIso(): string {
+  return new Date().toISOString().replace('T', ' ').replace('Z', '');
+}
 
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
 /**
- * Opens (or creates) a SQLite database at `dbPath` and returns a
- * {@link StateStore} implementation.
+ * Creates an in-memory {@link StateStore} implementation.
  *
- * Pass `':memory:'` for an ephemeral in-memory store (useful for tests).
+ * The `_dbPath` parameter is accepted for API compatibility but is ignored;
+ * all data is held in memory and lost when the process exits.
  */
-export function createStateStore(dbPath: string): StateStore {
-  const db = new Database(dbPath);
+export function createStateStore(_dbPath?: string): StateStore {
+  // Auto-incrementing ID counters
+  let scanIdSeq = 0;
+  let webhookIdSeq = 0;
+  let historyIdSeq = 0;
 
-  // Enable WAL for better concurrent read/write performance.
-  db.pragma('journal_mode = WAL');
-  db.exec(SCHEMA_DDL);
-
-  // -- prepared statements ---------------------------------------------------
-
-  const insertScan = db.prepare<[string, string, string]>(
-    `INSERT INTO scan_queue (repo, ref, trigger) VALUES (?, ?, ?)`,
-  );
-  const selectScanById = db.prepare<[number]>(
-    `SELECT * FROM scan_queue WHERE id = ?`,
-  );
-  const selectPending = db.prepare(
-    `SELECT * FROM scan_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1`,
-  );
-  const updateStatus = db.prepare<[string, number]>(
-    `UPDATE scan_queue SET status = ?, updated_at = datetime('now') WHERE id = ?`,
-  );
-  const selectQueue = db.prepare(
-    `SELECT * FROM scan_queue ORDER BY created_at DESC`,
-  );
-
-  const insertWebhook = db.prepare<[string, string, string]>(
-    `INSERT INTO webhook_log (source, event, payload) VALUES (?, ?, ?)`,
-  );
-  const selectWebhookById = db.prepare<[number]>(
-    `SELECT * FROM webhook_log WHERE id = ?`,
-  );
-  const selectWebhooks = db.prepare<[number]>(
-    `SELECT * FROM webhook_log ORDER BY received_at DESC LIMIT ?`,
-  );
-
-  const upsertSched = db.prepare<[string, string, string]>(
-    `INSERT INTO schedules (id, cron, task) VALUES (?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET cron = excluded.cron, task = excluded.task, enabled = 1`,
-  );
-  const deleteSched = db.prepare<[string]>(
-    `DELETE FROM schedules WHERE id = ?`,
-  );
-  const selectScheds = db.prepare(
-    `SELECT * FROM schedules ORDER BY created_at`,
-  );
-  const selectSchedById = db.prepare<[string]>(
-    `SELECT * FROM schedules WHERE id = ?`,
-  );
-
-  const insertHistory = db.prepare<[string, string, number, number, string]>(
-    `INSERT INTO scan_history (repo, ref, findings_count, duration_ms, status) VALUES (?, ?, ?, ?, ?)`,
-  );
-  const selectHistoryById = db.prepare<[number]>(
-    `SELECT * FROM scan_history WHERE id = ?`,
-  );
-  const selectLastScan = db.prepare(
-    `SELECT * FROM scan_history ORDER BY completed_at DESC, id DESC LIMIT 1`,
-  );
-  const selectHistory = db.prepare<[number]>(
-    `SELECT * FROM scan_history ORDER BY completed_at DESC, id DESC LIMIT ?`,
-  );
-  const countFindings = db.prepare(
-    `SELECT COALESCE(SUM(findings_count), 0) AS total FROM scan_history`,
-  );
-
-  // -- implementation --------------------------------------------------------
+  // Storage
+  const scanQueue = new Map<number, ScanQueueRow>();
+  const webhookLogs: WebhookLogRow[] = [];
+  const schedules = new Map<string, ScheduleRow>();
+  const scanHistory: ScanHistoryRow[] = [];
 
   return {
+    // -- scan_queue ----------------------------------------------------------
+
     enqueueScan(repo, ref, trigger) {
-      const info = insertScan.run(repo, ref, trigger);
-      return selectScanById.get(info.lastInsertRowid as number) as ScanQueueRow;
+      const now = nowIso();
+      const row: ScanQueueRow = {
+        id: ++scanIdSeq,
+        repo,
+        ref,
+        trigger,
+        status: 'pending',
+        created_at: now,
+        updated_at: now,
+      };
+      scanQueue.set(row.id, row);
+      return {...row};
     },
 
     dequeueScan() {
-      const row = selectPending.get() as ScanQueueRow | undefined;
-      if (row) {
-        updateStatus.run('running', row.id);
-        return {...row, status: 'running' as const};
+      // Find the oldest pending scan
+      let oldest: ScanQueueRow | undefined;
+      for (const row of scanQueue.values()) {
+        if (row.status === 'pending') {
+          if (!oldest || row.created_at < oldest.created_at || (row.created_at === oldest.created_at && row.id < oldest.id)) {
+            oldest = row;
+          }
+        }
+      }
+      if (oldest) {
+        oldest.status = 'running';
+        oldest.updated_at = nowIso();
+        return {...oldest};
       }
       return undefined;
     },
 
     updateScanStatus(id, status) {
-      const changes = updateStatus.run(status, id).changes;
-      if (changes === 0) return undefined;
-      return selectScanById.get(id) as ScanQueueRow;
+      const row = scanQueue.get(id);
+      if (!row) return undefined;
+      row.status = status;
+      row.updated_at = nowIso();
+      return {...row};
     },
 
     listScanQueue() {
-      return selectQueue.all() as ScanQueueRow[];
+      // Return newest first (ORDER BY created_at DESC)
+      return [...scanQueue.values()]
+        .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id)
+        .map((r) => ({...r}));
     },
 
+    // -- webhook_log ---------------------------------------------------------
+
     logWebhook(source, event, payload) {
-      const info = insertWebhook.run(source, event, payload);
-      return selectWebhookById.get(
-        info.lastInsertRowid as number,
-      ) as WebhookLogRow;
+      const row: WebhookLogRow = {
+        id: ++webhookIdSeq,
+        source,
+        event,
+        payload,
+        received_at: nowIso(),
+      };
+      webhookLogs.push(row);
+      return {...row};
     },
 
     listWebhookLogs(limit = 50) {
-      return selectWebhooks.all(limit) as WebhookLogRow[];
+      // Return newest first, limited
+      return webhookLogs
+        .slice()
+        .reverse()
+        .slice(0, limit)
+        .map((r) => ({...r}));
     },
 
+    // -- schedules -----------------------------------------------------------
+
     upsertSchedule(id, cron, task) {
-      upsertSched.run(id, cron, task);
-      return selectSchedById.get(id) as ScheduleRow;
+      const existing = schedules.get(id);
+      if (existing) {
+        existing.cron = cron;
+        existing.task = task;
+        existing.enabled = 1;
+        return {...existing};
+      }
+      const row: ScheduleRow = {
+        id,
+        cron,
+        task,
+        enabled: 1,
+        created_at: nowIso(),
+      };
+      schedules.set(id, row);
+      return {...row};
     },
 
     removeSchedule(id) {
-      return deleteSched.run(id).changes > 0;
+      return schedules.delete(id);
     },
 
     listSchedules() {
-      return selectScheds.all() as ScheduleRow[];
+      // Return sorted by created_at
+      return [...schedules.values()]
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+        .map((r) => ({...r}));
     },
 
+    // -- scan_history --------------------------------------------------------
+
     recordScan(repo, ref, findingsCount, durationMs, status) {
-      const info = insertHistory.run(
+      const row: ScanHistoryRow = {
+        id: ++historyIdSeq,
         repo,
         ref,
-        findingsCount,
-        durationMs,
+        findings_count: findingsCount,
+        duration_ms: durationMs,
         status,
-      );
-      return selectHistoryById.get(
-        info.lastInsertRowid as number,
-      ) as ScanHistoryRow;
+        completed_at: nowIso(),
+      };
+      scanHistory.push(row);
+      return {...row};
     },
 
     getLastScan() {
-      return selectLastScan.get() as ScanHistoryRow | undefined;
+      if (scanHistory.length === 0) return undefined;
+      // Most recent by completed_at DESC, id DESC
+      const sorted = scanHistory
+        .slice()
+        .sort((a, b) => b.completed_at.localeCompare(a.completed_at) || b.id - a.id);
+      return {...sorted[0]};
     },
 
     listScanHistory(limit = 50) {
-      return selectHistory.all(limit) as ScanHistoryRow[];
+      return scanHistory
+        .slice()
+        .sort((a, b) => b.completed_at.localeCompare(a.completed_at) || b.id - a.id)
+        .slice(0, limit)
+        .map((r) => ({...r}));
     },
 
     totalFindingsCount() {
-      const row = countFindings.get() as {total: number};
-      return row.total;
+      return scanHistory.reduce((sum, r) => sum + r.findings_count, 0);
     },
 
     close() {
-      db.close();
+      // No-op for in-memory store
     },
   };
 }

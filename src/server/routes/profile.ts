@@ -57,7 +57,7 @@ export interface ProfileStoreConfig {
 }
 
 export function createProfileStore(config: ProfileStoreConfig = {}): ProfileStore {
-  const ttlMs = config.ttlMs ?? 60 * 60 * 1000; // Default 1 hour
+  const _ttlMs = config.ttlMs ?? 60 * 60 * 1000; // Default 1 hour
   const profiles = new Map<string, ProfileRecord>();
   const targetIndex = new Map<string, string>(); // target -> profileId
 
@@ -137,7 +137,7 @@ export function createProfileStore(config: ProfileStoreConfig = {}): ProfileStor
  * Simulates a discovery run. In production this would invoke the
  * real discovery engine.
  */
-function runDiscovery(target: string): ProfileSummary {
+function runDiscovery(_target: string): ProfileSummary {
   return {
     languages: ['typescript'],
     frameworks: ['node'],

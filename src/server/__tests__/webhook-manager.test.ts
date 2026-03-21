@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 import {
   createWebhookManager,
-  type WebhookEvent,
+
   type WebhookPayload,
 } from '../webhook-manager.js';
 
@@ -198,7 +198,7 @@ describe('WebhookManager', () => {
     });
 
     it('marks as failed on non-200 HTTP response after retries', async () => {
-      const fetchFn = mockFetch(500, {failTimes: 0});
+      mockFetch(500, {failTimes: 0});
       // Override to always return 500.
       const alwaysFail = vi.fn(async () => {
         return new Response('Internal Server Error', {status: 500});

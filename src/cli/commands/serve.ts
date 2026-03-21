@@ -51,7 +51,7 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
   const scanStore = createScanStore();
   const profileStore = createProfileStore();
   const webhookManager = createWebhookManager();
-  const rateLimiter = createRateLimiter({
+  const _rateLimiter = createRateLimiter({
     maxRequests: 100,
     windowMs: 60_000,
   });
