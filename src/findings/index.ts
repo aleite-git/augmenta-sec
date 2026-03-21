@@ -1,5 +1,6 @@
 /**
- * Findings module — canonical schema, factory helpers, and severity scoring.
+ * Findings module — canonical schema, factory helpers, severity scoring,
+ * deduplication, and compliance mapping.
  *
  * @example
  * ```ts
@@ -37,3 +38,26 @@ export {
   numberToSeverity,
   isAtLeast,
 } from './severity.js';
+
+export type {
+  DeduplicationStrategy,
+  DuplicateGroup,
+  DeduplicatedResult,
+} from './dedup.js';
+
+export {
+  deduplicateFindings,
+  levenshteinDistance,
+  stringSimilarity,
+} from './dedup.js';
+
+export type {
+  ComplianceFramework,
+  ComplianceMapping,
+  ComplianceReport,
+} from './compliance.js';
+
+export {
+  mapFindingToCompliance,
+  generateComplianceReport,
+} from './compliance.js';
