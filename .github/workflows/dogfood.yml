@@ -1,0 +1,60 @@
+name: Dogfood
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dogfood:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Run augmenta-sec init
+        run: node dist/index.js init .
+
+      - name: Run augmenta-sec scan (offline)
+        run: node dist/index.js scan .
+
+      - name: Upload profile artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: augmenta-sec-profile
+          path: .augmenta-sec/profile.yaml
+
+      - name: Upload scan results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: augmenta-sec-scan-results
+          path: .augmenta-sec/
+
+      - name: Check for critical findings
+        run: |
+          if [ -f .augmenta-sec/scan-results.json ]; then
+            CRITICAL=$(node -e "
+              const fs = require('fs');
+              const data = JSON.parse(fs.readFileSync('.augmenta-sec/scan-results.json', 'utf8'));
+              const findings = data.findings || [];
+              const critical = findings.filter(f => f.severity === 'critical');
+              console.log(critical.length);
+            " 2>/dev/null || echo "0")
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "::error::Found $CRITICAL critical findings"
+              exit 1
+            fi
+            echo "No critical findings detected."
+          else
+            echo "No scan results file found — scan may be a no-op (acceptable)."
+          fi

@@ -1,0 +1,8 @@
+.git
+node_modules
+coverage
+*.md
+.augmenta-sec
+dist
+tests
+.github
