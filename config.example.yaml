@@ -1,0 +1,147 @@
+# ─────────────────────────────────────────────────────────
+# AugmentaSec Configuration
+# ─────────────────────────────────────────────────────────
+#
+# Copy this file to .augmenta-sec/config.yaml in your project.
+# All settings have sensible defaults — only override what you need.
+
+
+# ── LLM Configuration ──────────────────────────────────
+#
+# AugmentaSec uses three task-oriented roles to decide which
+# model handles each type of work:
+#
+#   triage     High-volume, low-complexity calls.
+#              "Is this finding relevant?" "Is this file security-related?"
+#              "Does this diff touch auth code?"
+#              Hundreds of calls per scan — should be fast and cheap.
+#
+#   analysis   Moderate-volume, moderate-complexity calls.
+#              "Review this endpoint for auth gaps." "Map the PII flow."
+#              "Draft a fix for this XSS vulnerability."
+#              Tens of calls per scan — balance speed and quality.
+#
+#   reasoning  Low-volume, high-complexity calls.
+#              "Generate a threat model." "Explain this architectural risk."
+#              "Correlate these 12 findings into a coherent narrative."
+#              A few calls per scan — quality matters most.
+#
+# Assign any supported model to any role. Mix and match freely.
+#
+# Format: provider/model-name
+#   gemini/gemini-2.5-flash-lite
+#   gemini/gemini-2.5-flash
+#   gemini/gemini-2.5-pro
+#   mistral/mistral-small-latest
+#   mistral/mistral-large-latest
+#   mistral/codestral-latest
+#   openai/gpt-4o-mini
+#   openai/gpt-4o
+#   anthropic/claude-sonnet-4-6
+#   anthropic/claude-opus-4-6
+#   ollama/llama3                    # local, no API key needed
+#   ollama/codellama
+#
+llm:
+  # ── Example: All Gemini (simple, one API key) ──
+  triage: gemini/gemini-2.5-flash-lite
+  analysis: gemini/gemini-2.5-flash
+  reasoning: gemini/gemini-2.5-pro
+
+  # ── Example: Mixed providers ──
+  # triage: gemini/gemini-2.5-flash-lite
+  # analysis: mistral/codestral-latest
+  # reasoning: gemini/gemini-2.5-pro
+
+  # ── Example: Single model for everything ──
+  # triage: gemini/gemini-2.5-flash
+  # analysis: gemini/gemini-2.5-flash
+  # reasoning: gemini/gemini-2.5-flash
+
+  # ── Example: Privacy-first (local triage, cloud reasoning) ──
+  # triage: ollama/llama3
+  # analysis: ollama/codellama
+  # reasoning: gemini/gemini-2.5-pro
+
+
+# ── Autonomy ───────────────────────────────────────────
+#
+# Controls what AugmentaSec is allowed to do on its own,
+# gated by finding severity.
+#
+#   create-pr-and-alert   Auto-create a fix PR and notify humans
+#   create-issue          File a ticket with full context
+#   report                Add to the scan report only
+#   note                  Log in the knowledge base silently
+#
+autonomy:
+  critical: create-pr-and-alert
+  high: create-issue
+  medium: report
+  low: note
+
+  # Safety rails
+  max_auto_prs_per_day: 3
+  never_auto_merge: true
+  respect_freeze: true
+
+
+# ── Scanners ───────────────────────────────────────────
+#
+# External scanners to orchestrate. AugmentaSec will check
+# if each is installed and skip gracefully if not found.
+#
+scanners:
+  - semgrep
+  - trivy
+  # - codeql
+  # - gitleaks
+  # - npm-audit
+  # - pip-audit
+  # - cargo-audit
+  # - bandit
+  # - gosec
+
+
+# ── Scan Settings ──────────────────────────────────────
+#
+scan:
+  # Which categories to include in scans
+  categories:
+    - auth           # Authentication and authorization gaps
+    - pii            # PII exposure and data flow
+    - injection      # SQL injection, XSS, command injection
+    - dependencies   # Vulnerable dependencies
+    - secrets        # Hardcoded secrets and credentials
+    - config         # Security misconfigurations
+    - crypto         # Weak cryptography
+    - containers     # Docker/container security
+
+  # Minimum severity to report (critical, high, medium, low, informational)
+  min_severity: low
+
+  # Maximum findings before stopping (0 = unlimited)
+  max_findings: 0
+
+
+# ── PR Review Settings ─────────────────────────────────
+#
+review:
+  # Auto-approve PRs with no findings above this severity
+  auto_approve_below: medium
+
+  # Post inline comments on specific lines
+  inline_comments: true
+
+  # Post a summary comment on the PR
+  summary_comment: true
+
+
+# ── Output ─────────────────────────────────────────────
+#
+output:
+  # Output format: text, json, yaml
+  format: text
+
+  # Verbosity: quiet, normal, verbose
+  verbosity: normal

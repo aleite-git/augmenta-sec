@@ -1,0 +1,244 @@
+/**
+ * Discovery engine types — defines the security profile schema
+ * and detector interfaces for AugmentaSec.
+ */
+
+// ---------------------------------------------------------------------------
+// Detector infrastructure
+// ---------------------------------------------------------------------------
+
+export interface GrepOptions {
+  maxFiles?: number;
+  maxMatches?: number;
+}
+
+export interface GrepMatch {
+  file: string;
+  line: number;
+  content: string;
+  match: string;
+}
+
+export interface DetectorContext {
+  rootDir: string;
+  findFiles(patterns: string[]): Promise<string[]>;
+  readFile(relativePath: string): Promise<string | null>;
+  readJson<T = unknown>(relativePath: string): Promise<T | null>;
+  readYaml<T = unknown>(relativePath: string): Promise<T | null>;
+  fileExists(relativePath: string): Promise<boolean>;
+  grep(
+    pattern: RegExp,
+    filePatterns: string[],
+    options?: GrepOptions,
+  ): Promise<GrepMatch[]>;
+}
+
+export interface Detector<T> {
+  name: string;
+  detect(ctx: DetectorContext): Promise<T>;
+}
+
+// ---------------------------------------------------------------------------
+// Language
+// ---------------------------------------------------------------------------
+
+export interface LanguageEntry {
+  name: string;
+  percentage: number;
+  fileCount: number;
+}
+
+export interface LanguageInfo {
+  primary: string;
+  all: LanguageEntry[];
+}
+
+// ---------------------------------------------------------------------------
+// Frameworks
+// ---------------------------------------------------------------------------
+
+export interface FrameworkEntry {
+  name: string;
+  category: 'backend' | 'frontend' | 'fullstack' | 'orm' | 'testing';
+  version?: string;
+  confidence: number;
+}
+
+export interface FrameworkInfo {
+  backend: FrameworkEntry[];
+  frontend: FrameworkEntry[];
+  fullstack: FrameworkEntry[];
+  orm: FrameworkEntry[];
+  testing: FrameworkEntry[];
+}
+
+// ---------------------------------------------------------------------------
+// Authentication
+// ---------------------------------------------------------------------------
+
+export interface AuthProvider {
+  name: string;
+  type: 'first-party' | 'third-party' | 'custom';
+  confidence: number;
+  source: string;
+}
+
+export interface AuthPattern {
+  type:
+    | 'middleware'
+    | 'decorator'
+    | 'guard'
+    | 'token-verification'
+    | 'session'
+    | 'rbac';
+  files: string[];
+}
+
+export interface AuthInfo {
+  providers: AuthProvider[];
+  patterns: AuthPattern[];
+}
+
+// ---------------------------------------------------------------------------
+// Database
+// ---------------------------------------------------------------------------
+
+export interface DatabaseEntry {
+  type: string;
+  driver?: string;
+  orm?: string;
+  migrationsDir?: string;
+  schemaDir?: string;
+  confidence: number;
+}
+
+export interface DatabaseInfo {
+  databases: DatabaseEntry[];
+}
+
+// ---------------------------------------------------------------------------
+// API surface
+// ---------------------------------------------------------------------------
+
+export interface EndpointSummary {
+  method: string;
+  path: string;
+  file: string;
+  line: number;
+}
+
+export interface ApiInfo {
+  styles: string[];
+  specFile?: string;
+  routeCount: number;
+  endpoints: EndpointSummary[];
+}
+
+// ---------------------------------------------------------------------------
+// Security controls
+// ---------------------------------------------------------------------------
+
+export interface SecurityControl {
+  name: string;
+  type: string;
+  present: boolean;
+  confidence: number;
+  source: string;
+  details?: string;
+}
+
+export interface SecurityControlsInfo {
+  present: SecurityControl[];
+  missing: SecurityControl[];
+}
+
+// ---------------------------------------------------------------------------
+// CI / CD
+// ---------------------------------------------------------------------------
+
+export interface CIWorkflow {
+  name: string;
+  file: string;
+  triggers: string[];
+}
+
+export interface CISecurityCheck {
+  name: string;
+  type: 'sast' | 'dast' | 'sca' | 'container' | 'secrets';
+  workflow: string;
+}
+
+export interface CIInfo {
+  platform: string;
+  workflows: CIWorkflow[];
+  securityChecks: CISecurityCheck[];
+}
+
+// ---------------------------------------------------------------------------
+// Documentation
+// ---------------------------------------------------------------------------
+
+export interface DocsInfo {
+  hasReadme: boolean;
+  hasContributing: boolean;
+  hasSecurityPolicy: boolean;
+  hasChangelog: boolean;
+  hasLicense: boolean;
+  architectureDocs: string[];
+  aiConfigs: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Trust boundaries & PII (LLM-enhanced or manual)
+// ---------------------------------------------------------------------------
+
+export interface TrustBoundaryCandidate {
+  name: string;
+  type: 'field' | 'header' | 'cookie' | 'session';
+  confidence: number;
+  locations: string[];
+  notes?: string;
+}
+
+export interface TrustBoundaryInfo {
+  candidates: TrustBoundaryCandidate[];
+}
+
+export interface PiiFieldCandidate {
+  field: string;
+  location: string;
+  classification:
+    | 'direct-identifier'
+    | 'quasi-identifier'
+    | 'sensitive'
+    | 'unknown';
+  confidence: number;
+}
+
+export interface PiiInfo {
+  candidates: PiiFieldCandidate[];
+}
+
+// ---------------------------------------------------------------------------
+// Top-level security profile
+// ---------------------------------------------------------------------------
+
+export interface SecurityProfile {
+  version: string;
+  generatedAt: string;
+  target: string;
+  project: {
+    name: string;
+    description?: string;
+  };
+  languages: LanguageInfo;
+  frameworks: FrameworkInfo;
+  auth: AuthInfo;
+  database: DatabaseInfo;
+  api: ApiInfo;
+  securityControls: SecurityControlsInfo;
+  ci: CIInfo;
+  docs: DocsInfo;
+  trustBoundaries: TrustBoundaryInfo;
+  piiFields: PiiInfo;
+}
