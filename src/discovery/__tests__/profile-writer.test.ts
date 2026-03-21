@@ -53,7 +53,7 @@ describe('writeProfile', () => {
   });
 
   it('writes profile.yaml to .augmenta-sec directory', async () => {
-    const {writeFile, mkdir} = await import('node:fs/promises');
+    const {writeFile} = await import('node:fs/promises');
     const {writeProfile} = await import('../profile-writer.js');
     const profile = createTestProfile();
 

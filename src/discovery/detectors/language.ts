@@ -1,4 +1,4 @@
-import {extname, basename} from 'node:path';
+import {extname} from 'node:path';
 import type {Detector, DetectorContext, LanguageInfo, LanguageEntry} from '../types.js';
 
 /** Maps manifest files to their language/ecosystem. */

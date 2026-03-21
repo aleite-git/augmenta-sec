@@ -22,7 +22,7 @@ function mockExecFileImpl(
 ) {
   mockExecFile.mockImplementation(
     ((...callArgs: unknown[]) => {
-      const cb = callArgs[callArgs.length - 1] as Function;
+      const cb = callArgs[callArgs.length - 1] as (...cbArgs: unknown[]) => void;
       if (typeof cb === 'function') {
         if (resolve) {
           cb(null, data.stdout ?? '', data.stderr ?? '');
