@@ -13,7 +13,7 @@
  * ```
  */
 
-export {generateHtmlReport, generateSeverityChart, escapeHtml} from './html-report.js';
+export {generateHtmlReport} from './html-report.js';
 export {generateJsonReport} from './json-report.js';
 
 // ASEC-154: Report templates
