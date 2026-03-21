@@ -115,11 +115,9 @@ export function createAnthropicProvider(
         });
 
         // Extract text from content blocks.
-        const text = response.content
-          .filter(
-            (block): block is Anthropic.TextBlock => block.type === 'text',
-          )
-          .map((block) => block.text)
+        const text = (response.content as Array<{type: string; text?: string}>)
+          .filter((block) => block.type === 'text')
+          .map((block) => block.text ?? '')
           .join('');
 
         return {
@@ -181,11 +179,9 @@ export function createAnthropicProvider(
         });
 
         // Extract text from content blocks.
-        const text = response.content
-          .filter(
-            (block): block is Anthropic.TextBlock => block.type === 'text',
-          )
-          .map((block) => block.text)
+        const text = (response.content as Array<{type: string; text?: string}>)
+          .filter((block) => block.type === 'text')
+          .map((block) => block.text ?? '')
           .join('');
 
         return JSON.parse(text) as T;

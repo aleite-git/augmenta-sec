@@ -12,6 +12,16 @@ import {
   securityControlsDetector,
   ciDetector,
   docsDetector,
+  monorepoDetector,
+  gitMetadataDetector,
+  dockerDetector,
+  iacDetector,
+  secretsDetector,
+  licenseDetector,
+  pythonEcosystemDetector,
+  goEcosystemDetector,
+  rustEcosystemDetector,
+  jvmEcosystemDetector,
 } from './detectors/index.js';
 
 interface DiscoveryResult {
@@ -38,6 +48,16 @@ export async function runDiscovery(rootDir: string): Promise<DiscoveryResult> {
     {name: securityControlsDetector.name, fn: () => securityControlsDetector.detect(ctx)},
     {name: ciDetector.name, fn: () => ciDetector.detect(ctx)},
     {name: docsDetector.name, fn: () => docsDetector.detect(ctx)},
+    {name: monorepoDetector.name, fn: () => monorepoDetector.detect(ctx)},
+    {name: gitMetadataDetector.name, fn: () => gitMetadataDetector.detect(ctx)},
+    {name: dockerDetector.name, fn: () => dockerDetector.detect(ctx)},
+    {name: iacDetector.name, fn: () => iacDetector.detect(ctx)},
+    {name: secretsDetector.name, fn: () => secretsDetector.detect(ctx)},
+    {name: licenseDetector.name, fn: () => licenseDetector.detect(ctx)},
+    {name: pythonEcosystemDetector.name, fn: () => pythonEcosystemDetector.detect(ctx)},
+    {name: goEcosystemDetector.name, fn: () => goEcosystemDetector.detect(ctx)},
+    {name: rustEcosystemDetector.name, fn: () => rustEcosystemDetector.detect(ctx)},
+    {name: jvmEcosystemDetector.name, fn: () => jvmEcosystemDetector.detect(ctx)},
   ];
 
   // Run all detectors in parallel — each is independent
@@ -111,6 +131,44 @@ export async function runDiscovery(rootDir: string): Promise<DiscoveryResult> {
     },
     trustBoundaries: {candidates: []},
     piiFields: {candidates: []},
+    monorepo: (resultMap.get('monorepo') as SecurityProfile['monorepo']) ?? {
+      isMonorepo: false, workspaces: [],
+    },
+    git: (resultMap.get('git') as SecurityProfile['git']) ?? {
+      hasGit: false,
+    },
+    docker: (resultMap.get('docker') as SecurityProfile['docker']) ?? {
+      hasDocker: false, dockerfiles: [], hasCompose: false, composeFiles: [],
+      baseImages: [], usesNonRoot: false, hasMultiStage: false, healthCheck: false,
+    },
+    iac: (resultMap.get('iac') as SecurityProfile['iac']) ?? {
+      tools: [],
+    },
+    secrets: (resultMap.get('secrets') as SecurityProfile['secrets']) ?? {
+      envFiles: [], gitignoresEnv: false, findings: [],
+    },
+    licenses: (resultMap.get('licenses') as SecurityProfile['licenses']) ?? {
+      dependencyLicenses: [],
+    },
+    pythonEcosystem: (resultMap.get('python-ecosystem') as SecurityProfile['pythonEcosystem']) ?? {
+      detected: false, packageManager: null, hasVirtualEnv: false, virtualEnvPaths: [],
+      hasPyprojectToml: false, hasPoetryLock: false, hasPipfileLock: false,
+      frameworks: [], securityDeps: [],
+    },
+    goEcosystem: (resultMap.get('go-ecosystem') as SecurityProfile['goEcosystem']) ?? {
+      detected: false, hasGoSum: false, directDeps: 0, indirectDeps: 0,
+      frameworks: [], securityTools: [], hasVendor: false, hasUnsafeImports: false,
+    },
+    rustEcosystem: (resultMap.get('rust-ecosystem') as SecurityProfile['rustEcosystem']) ?? {
+      detected: false, hasCargoLock: false, crateCount: 0, hasUnsafeBlocks: false,
+      unsafeFileCount: 0, frameworks: [], securityDeps: [],
+      isWorkspace: false, workspaceMembers: [],
+    },
+    jvmEcosystem: (resultMap.get('jvm-ecosystem') as SecurityProfile['jvmEcosystem']) ?? {
+      detected: false, buildTool: null, hasSpringBoot: false, hasSpringSecurity: false,
+      frameworks: [], securityDeps: [], hasGradleLock: false,
+      hasMavenWrapper: false, hasGradleWrapper: false,
+    },
   };
 
   return {

@@ -189,6 +189,79 @@ export interface DocsInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Python ecosystem (ASEC-066)
+// ---------------------------------------------------------------------------
+
+export interface PythonEcosystemInfo {
+  detected: boolean;
+  packageManager: 'pip' | 'poetry' | 'pipenv' | 'pdm' | 'uv' | null;
+  projectFile?: string;
+  hasVirtualEnv: boolean;
+  virtualEnvPaths: string[];
+  hasPyprojectToml: boolean;
+  hasPoetryLock: boolean;
+  hasPipfileLock: boolean;
+  pythonVersion?: string;
+  frameworks: string[];
+  securityDeps: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Go ecosystem (ASEC-067)
+// ---------------------------------------------------------------------------
+
+export interface GoEcosystemInfo {
+  detected: boolean;
+  goModFile?: string;
+  goVersion?: string;
+  modulePath?: string;
+  hasGoSum: boolean;
+  directDeps: number;
+  indirectDeps: number;
+  frameworks: string[];
+  securityTools: string[];
+  hasVendor: boolean;
+  hasUnsafeImports: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Rust ecosystem (ASEC-068)
+// ---------------------------------------------------------------------------
+
+export interface RustEcosystemInfo {
+  detected: boolean;
+  cargoTomlFile?: string;
+  edition?: string;
+  rustVersion?: string;
+  hasCargoLock: boolean;
+  crateCount: number;
+  hasUnsafeBlocks: boolean;
+  unsafeFileCount: number;
+  frameworks: string[];
+  securityDeps: string[];
+  isWorkspace: boolean;
+  workspaceMembers: string[];
+}
+
+// ---------------------------------------------------------------------------
+// JVM ecosystem (ASEC-069)
+// ---------------------------------------------------------------------------
+
+export interface JvmEcosystemInfo {
+  detected: boolean;
+  buildTool: 'maven' | 'gradle' | 'sbt' | null;
+  buildFile?: string;
+  javaVersion?: string;
+  hasSpringBoot: boolean;
+  hasSpringSecurity: boolean;
+  frameworks: string[];
+  securityDeps: string[];
+  hasGradleLock: boolean;
+  hasMavenWrapper: boolean;
+  hasGradleWrapper: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Trust boundaries & PII (LLM-enhanced or manual)
 // ---------------------------------------------------------------------------
 
@@ -220,6 +293,110 @@ export interface PiiInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Monorepo
+// ---------------------------------------------------------------------------
+
+export interface WorkspaceEntry {
+  name: string;
+  path: string;
+  type: 'package' | 'app' | 'library';
+}
+
+export interface MonorepoInfo {
+  isMonorepo: boolean;
+  tool?: string;
+  workspaces: WorkspaceEntry[];
+}
+
+// ---------------------------------------------------------------------------
+// Git metadata
+// ---------------------------------------------------------------------------
+
+export interface GitMetadataInfo {
+  hasGit: boolean;
+  remoteUrl?: string;
+  platform?:
+    | 'github'
+    | 'gitlab'
+    | 'bitbucket'
+    | 'azure-devops'
+    | 'gitea'
+    | 'unknown';
+  defaultBranch?: string;
+  owner?: string;
+  repo?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Docker
+// ---------------------------------------------------------------------------
+
+export interface DockerInfo {
+  hasDocker: boolean;
+  dockerfiles: string[];
+  hasCompose: boolean;
+  composeFiles: string[];
+  baseImages: string[];
+  usesNonRoot: boolean;
+  hasMultiStage: boolean;
+  healthCheck: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Infrastructure as Code
+// ---------------------------------------------------------------------------
+
+export interface IaCEntry {
+  tool:
+    | 'terraform'
+    | 'pulumi'
+    | 'cdk'
+    | 'cloudformation'
+    | 'ansible'
+    | 'helm';
+  files: string[];
+  providers?: string[];
+}
+
+export interface IaCInfo {
+  tools: IaCEntry[];
+}
+
+// ---------------------------------------------------------------------------
+// Secret / env detection
+// ---------------------------------------------------------------------------
+
+export interface SecretFinding {
+  type: 'env-file' | 'hardcoded' | 'config-reference';
+  file: string;
+  line?: number;
+  pattern: string;
+  risk: 'high' | 'medium' | 'low';
+}
+
+export interface SecretsInfo {
+  envFiles: string[];
+  gitignoresEnv: boolean;
+  findings: SecretFinding[];
+}
+
+// ---------------------------------------------------------------------------
+// License
+// ---------------------------------------------------------------------------
+
+export interface LicenseInfo {
+  projectLicense?: string;
+  licenseFile?: string;
+  dependencyLicenses: DependencyLicense[];
+}
+
+export interface DependencyLicense {
+  package: string;
+  license: string;
+  risk: 'none' | 'copyleft' | 'restrictive' | 'unknown';
+}
+
+// ---------------------------------------------------------------------------
 // Top-level security profile
 // ---------------------------------------------------------------------------
 
@@ -241,4 +418,14 @@ export interface SecurityProfile {
   docs: DocsInfo;
   trustBoundaries: TrustBoundaryInfo;
   piiFields: PiiInfo;
+  monorepo: MonorepoInfo;
+  git: GitMetadataInfo;
+  docker: DockerInfo;
+  iac: IaCInfo;
+  secrets: SecretsInfo;
+  licenses: LicenseInfo;
+  pythonEcosystem: PythonEcosystemInfo;
+  goEcosystem: GoEcosystemInfo;
+  rustEcosystem: RustEcosystemInfo;
+  jvmEcosystem: JvmEcosystemInfo;
 }

@@ -15,7 +15,7 @@ vi.mock('../../utils/logger.js', () => ({
   },
 }));
 
-// Mock all 8 detectors
+// Mock all 18 detectors
 vi.mock('../detectors/index.js', () => ({
   languageDetector: {name: 'language', detect: vi.fn()},
   frameworkDetector: {name: 'framework', detect: vi.fn()},
@@ -25,6 +25,16 @@ vi.mock('../detectors/index.js', () => ({
   securityControlsDetector: {name: 'security-controls', detect: vi.fn()},
   ciDetector: {name: 'ci', detect: vi.fn()},
   docsDetector: {name: 'docs', detect: vi.fn()},
+  monorepoDetector: {name: 'monorepo', detect: vi.fn()},
+  gitMetadataDetector: {name: 'git', detect: vi.fn()},
+  dockerDetector: {name: 'docker', detect: vi.fn()},
+  iacDetector: {name: 'iac', detect: vi.fn()},
+  secretsDetector: {name: 'secrets', detect: vi.fn()},
+  licenseDetector: {name: 'licenses', detect: vi.fn()},
+  pythonEcosystemDetector: {name: 'python-ecosystem', detect: vi.fn()},
+  goEcosystemDetector: {name: 'go-ecosystem', detect: vi.fn()},
+  rustEcosystemDetector: {name: 'rust-ecosystem', detect: vi.fn()},
+  jvmEcosystemDetector: {name: 'jvm-ecosystem', detect: vi.fn()},
 }));
 
 /** Sets up default mock return values for all detectors. */
@@ -60,6 +70,42 @@ async function setupDefaultMocks() {
   vi.mocked(detectors.docsDetector.detect).mockResolvedValue({
     hasReadme: false, hasContributing: false, hasSecurityPolicy: false,
     hasChangelog: false, hasLicense: false, architectureDocs: [], aiConfigs: [],
+  });
+  vi.mocked(detectors.monorepoDetector.detect).mockResolvedValue({
+    isMonorepo: false, workspaces: [],
+  });
+  vi.mocked(detectors.gitMetadataDetector.detect).mockResolvedValue({
+    hasGit: false,
+  });
+  vi.mocked(detectors.dockerDetector.detect).mockResolvedValue({
+    hasDocker: false, dockerfiles: [], hasCompose: false, composeFiles: [],
+    baseImages: [], usesNonRoot: false, hasMultiStage: false, healthCheck: false,
+  });
+  vi.mocked(detectors.iacDetector.detect).mockResolvedValue({tools: []});
+  vi.mocked(detectors.secretsDetector.detect).mockResolvedValue({
+    envFiles: [], gitignoresEnv: false, findings: [],
+  });
+  vi.mocked(detectors.licenseDetector.detect).mockResolvedValue({
+    dependencyLicenses: [],
+  });
+  vi.mocked(detectors.pythonEcosystemDetector.detect).mockResolvedValue({
+    detected: false, packageManager: null, hasVirtualEnv: false, virtualEnvPaths: [],
+    hasPyprojectToml: false, hasPoetryLock: false, hasPipfileLock: false,
+    frameworks: [], securityDeps: [],
+  });
+  vi.mocked(detectors.goEcosystemDetector.detect).mockResolvedValue({
+    detected: false, hasGoSum: false, directDeps: 0, indirectDeps: 0,
+    frameworks: [], securityTools: [], hasVendor: false, hasUnsafeImports: false,
+  });
+  vi.mocked(detectors.rustEcosystemDetector.detect).mockResolvedValue({
+    detected: false, hasCargoLock: false, crateCount: 0, hasUnsafeBlocks: false,
+    unsafeFileCount: 0, frameworks: [], securityDeps: [],
+    isWorkspace: false, workspaceMembers: [],
+  });
+  vi.mocked(detectors.jvmEcosystemDetector.detect).mockResolvedValue({
+    detected: false, buildTool: null, hasSpringBoot: false, hasSpringSecurity: false,
+    frameworks: [], securityDeps: [], hasGradleLock: false,
+    hasMavenWrapper: false, hasGradleWrapper: false,
   });
 
   return detectors;
@@ -162,7 +208,7 @@ describe('runDiscovery', () => {
 
     expect(result.warnings.length).toBe(1);
     expect(result.warnings[0]).toContain('language');
-    expect(result.warnings[0]).toContain('boom');
+    expect(result.warnings[0]).toContain('failed');
   });
 
   it('profile has correct structure with all sections', async () => {
