@@ -16,6 +16,11 @@ export {
 } from './anthropic.js';
 export {createGeminiProvider, GeminiProviderError} from './gemini.js';
 export {createMistralProvider, MistralProviderError} from './mistral.js';
+export {
+  createOllamaProvider,
+  OllamaProviderError,
+  isAvailable as isOllamaAvailable,
+} from './ollama.js';
 export {createOpenAIProvider, OpenAIProviderError} from './openai.js';
 
 export type {Prompt, PromptLibrary} from './prompts.js';
