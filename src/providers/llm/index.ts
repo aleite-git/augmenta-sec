@@ -11,3 +11,8 @@ export type {
 
 export {createGateway, parseModelString} from './gateway.js';
 export {createGeminiProvider, GeminiProviderError} from './gemini.js';
+export {
+  createOllamaProvider,
+  OllamaProviderError,
+  isAvailable as isOllamaAvailable,
+} from './ollama.js';
