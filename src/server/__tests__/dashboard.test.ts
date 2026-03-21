@@ -7,20 +7,14 @@ import {
   renderRecentScans,
   renderTrendGraph,
 } from '../dashboard.js';
-import type {
-  TrendReport,
-  ScanSnapshot,
-  TrendLine,
-} from '../../report/trends.js';
+import type {TrendReport, ScanSnapshot, TrendLine} from '../../report/trends.js';
 import type {FindingsSummary} from '../../findings/types.js';
 
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
-function makeSummary(
-  overrides: Partial<FindingsSummary> = {},
-): FindingsSummary {
+function makeSummary(overrides: Partial<FindingsSummary> = {}): FindingsSummary {
   return {
     total: 10,
     bySeverity: {
@@ -67,29 +61,11 @@ function makeReport(overrides: Partial<TrendReport> = {}): TrendReport {
     ],
     trends: [
       makeTrendLine({metric: 'total'}),
-      makeTrendLine({
-        metric: 'critical',
-        points: [
-          {timestamp: '2026-03-01', value: 2},
-          {timestamp: '2026-03-02', value: 1},
-        ],
-        direction: 'improving',
-      }),
-      makeTrendLine({
-        metric: 'high',
-        points: [
-          {timestamp: '2026-03-01', value: 3},
-          {timestamp: '2026-03-02', value: 2},
-        ],
-        direction: 'improving',
-      }),
+      makeTrendLine({metric: 'critical', points: [{timestamp: '2026-03-01', value: 2}, {timestamp: '2026-03-02', value: 1}], direction: 'improving'}),
+      makeTrendLine({metric: 'high', points: [{timestamp: '2026-03-01', value: 3}, {timestamp: '2026-03-02', value: 2}], direction: 'improving'}),
       makeTrendLine({metric: 'medium', points: [], direction: 'stable'}),
       makeTrendLine({metric: 'low', points: [], direction: 'stable'}),
-      makeTrendLine({
-        metric: 'informational',
-        points: [],
-        direction: 'stable',
-      }),
+      makeTrendLine({metric: 'informational', points: [], direction: 'stable'}),
     ],
     ...overrides,
   };
@@ -206,13 +182,7 @@ describe('renderSeverityChart', () => {
       scans: [
         makeScan({
           summary: makeSummary({
-            bySeverity: {
-              critical: 7,
-              high: 3,
-              medium: 2,
-              low: 1,
-              informational: 0,
-            },
+            bySeverity: {critical: 7, high: 3, medium: 2, low: 1, informational: 0},
           }),
         }),
       ],
@@ -242,16 +212,8 @@ describe('renderSeverityChart', () => {
 describe('renderRecentScans', () => {
   it('renders a table with scan rows', () => {
     const scans = [
-      makeScan({
-        id: 'a',
-        timestamp: '2026-03-01T10:00:00.000Z',
-        target: '/proj-a',
-      }),
-      makeScan({
-        id: 'b',
-        timestamp: '2026-03-02T10:00:00.000Z',
-        target: '/proj-b',
-      }),
+      makeScan({id: 'a', timestamp: '2026-03-01T10:00:00.000Z', target: '/proj-a'}),
+      makeScan({id: 'b', timestamp: '2026-03-02T10:00:00.000Z', target: '/proj-b'}),
     ];
     const html = renderRecentScans(scans);
     expect(html).toContain('<table>');

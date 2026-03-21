@@ -81,12 +81,7 @@ function renderSeverityChart(report: TrendReport): string {
   const latest = report.scans[report.scans.length - 1];
   const severities = ['critical', 'high', 'medium', 'low', 'informational'];
   const maxValue = Math.max(
-    ...severities.map(
-      s =>
-        latest.summary.bySeverity[
-          s as keyof typeof latest.summary.bySeverity
-        ] ?? 0,
-    ),
+    ...severities.map(s => latest.summary.bySeverity[s as keyof typeof latest.summary.bySeverity] ?? 0),
     1,
   );
 
@@ -98,11 +93,8 @@ function renderSeverityChart(report: TrendReport): string {
   const bars = severities
     .map((severity, i) => {
       const value =
-        latest.summary.bySeverity[
-          severity as keyof typeof latest.summary.bySeverity
-        ] ?? 0;
-      const barHeight =
-        maxValue > 0 ? (value / maxValue) * (chartHeight - 40) : 0;
+        latest.summary.bySeverity[severity as keyof typeof latest.summary.bySeverity] ?? 0;
+      const barHeight = maxValue > 0 ? (value / maxValue) * (chartHeight - 40) : 0;
       const x = gap + i * (barWidth + gap);
       const y = chartHeight - barHeight - 30;
       const color = SEVERITY_COLORS[severity] ?? '#6b7280';
@@ -204,8 +196,7 @@ function renderTrendLine(
     if (!trend || trend.points.length === 0) continue;
 
     const points = trend.points.map((p, i) => {
-      const x =
-        padding + (i / Math.max(trend.points.length - 1, 1)) * plotWidth;
+      const x = padding + (i / Math.max(trend.points.length - 1, 1)) * plotWidth;
       const y = padding + plotHeight - (p.value / maxVal) * plotHeight;
       return `${x},${y}`;
     });
@@ -230,8 +221,7 @@ function renderTrendLine(
 
   const xLabels = labelIndices
     .map(i => {
-      const x =
-        padding + (i / Math.max(labels.length - 1, 1)) * plotWidth;
+      const x = padding + (i / Math.max(labels.length - 1, 1)) * plotWidth;
       const dateStr = labels[i].timestamp.slice(0, 10);
       return `<text x="${x}" y="${height - 5}" text-anchor="middle" class="axis-label">${escapeHtml(dateStr)}</text>`;
     })
