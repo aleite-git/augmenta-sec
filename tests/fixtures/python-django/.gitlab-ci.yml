@@ -1,0 +1,25 @@
+stages:
+  - test
+  - build
+
+test:
+  stage: test
+  image: python:3.12
+  services:
+    - postgres:16
+  variables:
+    POSTGRES_DB: mydb
+    POSTGRES_USER: user
+    POSTGRES_PASSWORD: password
+    DB_HOST: postgres
+  script:
+    - pip install -r requirements.txt
+    - python manage.py test
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t myapp .

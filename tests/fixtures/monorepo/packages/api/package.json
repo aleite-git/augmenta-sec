@@ -1,0 +1,12 @@
+{
+  "name": "@monorepo/api",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "express": "^4.21.0",
+    "@monorepo/shared": "*"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0"
+  }
+}
