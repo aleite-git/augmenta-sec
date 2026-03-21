@@ -13,19 +13,33 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint src/",
-    "format": "prettier --write src/"
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.0",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "fast-glob": "^3.3.3",
     "yaml": "^2.7.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.18.0",
     "@types/node": "^22.15.0",
+    "@vitest/coverage-v8": "^3.1.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.1.0",
+    "prettier": "^3.5.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0",
+    "typescript-eslint": "^8.25.0",
     "vitest": "^3.1.0"
   },
   "engines": {
