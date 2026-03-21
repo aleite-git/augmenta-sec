@@ -15,6 +15,7 @@ export {
   AnthropicProviderError,
 } from './anthropic.js';
 export {createGeminiProvider, GeminiProviderError} from './gemini.js';
+export {createOpenAIProvider, OpenAIProviderError} from './openai.js';
 
 export type {Prompt, PromptLibrary} from './prompts.js';
 export {createPromptLibrary} from './prompts.js';
