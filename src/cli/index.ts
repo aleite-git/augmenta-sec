@@ -2,6 +2,7 @@ import {Command} from 'commander';
 import {initCommand} from './commands/init.js';
 import {scanCommand} from './commands/scan.js';
 import {reviewCommand} from './commands/review.js';
+import {trendsCommand} from './commands/trends.js';
 
 export function createCli(): Command {
   const program = new Command();
@@ -33,6 +34,15 @@ export function createCli(): Command {
     .argument('[pr]', 'PR number or URL')
     .action(async (pr?: string) => {
       await reviewCommand(pr);
+    });
+
+  program
+    .command('trends')
+    .description('Display historical scan trends')
+    .argument('[path]', 'target directory (defaults to current directory)')
+    .option('-n, --count <number>', 'number of recent scans to include', '10')
+    .action(async (path?: string) => {
+      await trendsCommand(path);
     });
 
   return program;
