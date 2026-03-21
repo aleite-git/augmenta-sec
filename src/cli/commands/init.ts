@@ -5,19 +5,44 @@ import {logger} from '../../utils/logger.js';
 import {runDiscovery} from '../../discovery/engine.js';
 import {writeProfile} from '../../discovery/profile-writer.js';
 import type {SecurityProfile} from '../../discovery/types.js';
+import {createFormatter} from '../output.js';
+import type {OutputFormat} from '../output.js';
+import {createLogger} from '../verbosity.js';
+import type {Verbosity} from '../verbosity.js';
 
-export async function initCommand(targetPath?: string): Promise<void> {
+export interface InitOptions {
+  format?: OutputFormat;
+  verbosity?: Verbosity;
+}
+
+export async function initCommand(
+  targetPath?: string,
+  options?: InitOptions,
+): Promise<void> {
   const rootDir = resolve(targetPath ?? '.');
+  const format = options?.format ?? 'text';
+  const verbosity = options?.verbosity ?? 'normal';
+  const log = createLogger(verbosity);
 
   if (!existsSync(rootDir)) {
     logger.error(`Target directory does not exist: ${rootDir}`);
     process.exit(1);
   }
 
+  // For machine-readable formats, skip decorative output
+  if (format !== 'text') {
+    const {profile} = await runDiscovery(rootDir);
+    await writeProfile(profile, rootDir);
+    const formatter = createFormatter(format);
+    console.log(formatter.format(profile));
+    return;
+  }
+
+  // Text mode: human-friendly output
   console.log();
   console.log(chalk.bold.cyan('AugmentaSec Discovery Engine'));
-  console.log(chalk.gray('─'.repeat(60)));
-  logger.detail('Target', rootDir);
+  console.log(chalk.gray('\u2500'.repeat(60)));
+  log.detail('Target', rootDir);
   console.log();
 
   // Run discovery
@@ -27,7 +52,15 @@ export async function initCommand(targetPath?: string): Promise<void> {
   const profilePath = await writeProfile(profile, rootDir);
 
   // Print summary
-  printSummary(profile, duration, warnings, profilePath);
+  printSummary(profile, duration, warnings, profilePath, log);
+}
+
+interface SummaryLogger {
+  header(msg: string): void;
+  detail(label: string, value: string): void;
+  badge(present: boolean, label: string, detail?: string): void;
+  success(msg: string): void;
+  warn(msg: string): void;
 }
 
 function printSummary(
@@ -35,15 +68,16 @@ function printSummary(
   duration: number,
   warnings: string[],
   profilePath: string,
+  log: SummaryLogger,
 ): void {
-  logger.header('Discovery Results');
+  log.header('Discovery Results');
 
   // Languages
   const langSummary = p.languages.all
     .slice(0, 5)
     .map(l => `${l.name} (${l.percentage}%)`)
     .join(', ');
-  logger.detail('Languages', langSummary || 'none detected');
+  log.detail('Languages', langSummary || 'none detected');
 
   // Frameworks
   const allFrameworks = [
@@ -53,19 +87,19 @@ function printSummary(
     ...p.frameworks.orm,
   ];
   const fwSummary = allFrameworks
-    .map(f => f.version ? `${f.name} ${f.version}` : f.name)
+    .map(f => (f.version ? `${f.name} ${f.version}` : f.name))
     .join(', ');
-  logger.detail('Frameworks', fwSummary || 'none detected');
+  log.detail('Frameworks', fwSummary || 'none detected');
 
   // Testing
   const testSummary = p.frameworks.testing.map(f => f.name).join(', ');
-  logger.detail('Testing', testSummary || 'none detected');
+  log.detail('Testing', testSummary || 'none detected');
 
   // Auth
   const authSummary = p.auth.providers
     .map(a => `${a.name} (${a.type})`)
     .join(', ');
-  logger.detail('Authentication', authSummary || 'none detected');
+  log.detail('Authentication', authSummary || 'none detected');
 
   // Database
   const dbSummary = p.database.databases
@@ -75,58 +109,65 @@ function printSummary(
       return parts.join(' ');
     })
     .join(', ');
-  logger.detail('Database', dbSummary || 'none detected');
+  log.detail('Database', dbSummary || 'none detected');
 
   // API
-  const apiSummary = `${p.api.styles.join(', ')} — ${p.api.routeCount} routes detected`;
-  logger.detail('API Surface', apiSummary);
+  const apiSummary = `${p.api.styles.join(', ')} \u2014 ${p.api.routeCount} routes detected`;
+  log.detail('API Surface', apiSummary);
   if (p.api.specFile) {
-    logger.detail('', `OpenAPI spec: ${p.api.specFile}`);
+    log.detail('', `OpenAPI spec: ${p.api.specFile}`);
   }
 
   // Security Controls
   console.log();
   console.log(chalk.bold('  Security Controls'));
   for (const ctrl of p.securityControls.present) {
-    logger.badge(true, ctrl.name, ctrl.details);
+    log.badge(true, ctrl.name, ctrl.details);
   }
   for (const ctrl of p.securityControls.missing) {
-    logger.badge(false, ctrl.name, 'not detected');
+    log.badge(false, ctrl.name, 'not detected');
   }
 
   // CI/CD
   console.log();
   console.log(chalk.bold('  CI/CD'));
-  logger.detail('Platform', p.ci.platform);
-  logger.detail('Workflows', String(p.ci.workflows.length));
+  log.detail('Platform', p.ci.platform);
+  log.detail('Workflows', String(p.ci.workflows.length));
   if (p.ci.securityChecks.length > 0) {
     for (const check of p.ci.securityChecks) {
-      logger.badge(true, check.name, check.type);
+      log.badge(true, check.name, check.type);
     }
   } else {
-    logger.badge(false, 'No security checks detected in CI');
+    log.badge(false, 'No security checks detected in CI');
   }
 
   // Documentation
   console.log();
   console.log(chalk.bold('  Documentation'));
-  logger.badge(p.docs.hasReadme, 'README');
-  logger.badge(p.docs.hasSecurityPolicy, 'SECURITY.md');
-  logger.badge(p.docs.hasChangelog, 'CHANGELOG');
-  logger.badge(p.docs.hasLicense, 'LICENSE');
-  logger.badge(p.docs.hasContributing, 'CONTRIBUTING');
+  log.badge(p.docs.hasReadme, 'README');
+  log.badge(p.docs.hasSecurityPolicy, 'SECURITY.md');
+  log.badge(p.docs.hasChangelog, 'CHANGELOG');
+  log.badge(p.docs.hasLicense, 'LICENSE');
+  log.badge(p.docs.hasContributing, 'CONTRIBUTING');
   if (p.docs.architectureDocs.length > 0) {
-    logger.badge(true, `${p.docs.architectureDocs.length} architecture/spec docs`);
+    log.badge(true, `${p.docs.architectureDocs.length} architecture/spec docs`);
   }
   if (p.docs.aiConfigs.length > 0) {
-    logger.badge(true, `AI config: ${p.docs.aiConfigs.join(', ')}`);
+    log.badge(true, `AI config: ${p.docs.aiConfigs.join(', ')}`);
   }
 
-  // Trust boundaries & PII
+  // Trust boundaries and PII
   console.log();
   console.log(chalk.bold('  Trust Boundaries & PII'));
-  if (p.trustBoundaries.candidates.length === 0 && p.piiFields.candidates.length === 0) {
-    console.log(chalk.gray('  [llm] Run `asec scan --deep` to detect trust boundaries and PII fields'));
+  if (
+    p.trustBoundaries.candidates.length === 0 &&
+    p.piiFields.candidates.length === 0
+  ) {
+    console.log(
+      chalk.gray(
+        '  [llm] Run `asec scan --deep` to detect trust boundaries and PII fields',
+      ),
+    );
   }
 
   // Warnings
@@ -134,15 +175,15 @@ function printSummary(
     console.log();
     console.log(chalk.bold.yellow('  Warnings'));
     for (const w of warnings) {
-      logger.warn(w);
+      log.warn(w);
     }
   }
 
   // Footer
   console.log();
-  console.log(chalk.gray('─'.repeat(60)));
-  logger.success(`Profile written to ${chalk.underline(profilePath)}`);
-  logger.detail('Duration', `${duration}ms`);
+  console.log(chalk.gray('\u2500'.repeat(60)));
+  log.success(`Profile written to ${chalk.underline(profilePath)}`);
+  log.detail('Duration', `${duration}ms`);
   console.log();
   console.log(chalk.gray('  Next steps:'));
   console.log(chalk.gray('    1. Review the profile for accuracy'));

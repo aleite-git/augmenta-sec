@@ -9,11 +9,11 @@
  * Priority: project > global > defaults.
  */
 
-import {readFile} from 'node:fs/promises';
+import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import {join} from 'node:path';
 
-import {parse as parseYaml} from 'yaml';
+import {parse as parseYaml, stringify as stringifyYaml} from 'yaml';
 import {ZodError} from 'zod';
 
 import {DEFAULT_CONFIG} from './defaults.js';
@@ -201,4 +201,43 @@ export async function resolveConfig(
   );
 
   return merged as unknown as AugmentaSecConfig;
+}
+
+/**
+ * Saves a partial configuration to the global config file
+ * (`~/.augmenta-sec/config.yaml`), merging with any existing values.
+ *
+ * @param config - Partial config to merge into the existing global config.
+ * @param homeDir - Override the home directory (useful for testing).
+ */
+export async function saveGlobalConfig(
+  config: Partial<RawConfig>,
+  homeDir?: string,
+): Promise<void> {
+  const home = homeDir ?? homedir();
+  const configDirPath = join(home, CONFIG_DIR);
+  const filePath = join(configDirPath, CONFIG_FILE);
+
+  // Load existing config (if any)
+  const existing = await readConfigFile(filePath);
+  const base = existing ?? {};
+
+  // Deep-merge the new values on top of existing
+  const merged = deepMerge(
+    base as Record<string, unknown>,
+    config as Record<string, unknown>,
+  );
+
+  // Validate the merged result
+  validateConfig(merged, filePath);
+
+  // Ensure directory exists and write
+  await mkdir(configDirPath, {recursive: true});
+  const yamlContent = stringifyYaml(merged, {
+    indent: 2,
+    lineWidth: 100,
+    defaultStringType: "PLAIN",
+    defaultKeyType: "PLAIN",
+  });
+  await writeFile(filePath, yamlContent, "utf-8");
 }

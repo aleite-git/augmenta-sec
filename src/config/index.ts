@@ -32,4 +32,7 @@ export {
   loadProjectConfig,
   loadGlobalConfig,
   resolveConfig,
+  saveGlobalConfig,
 } from './loader.js';
+
+export {mergeProfiles, hasManualEdits} from './profile-merge.js';
