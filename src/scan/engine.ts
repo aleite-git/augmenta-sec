@@ -23,7 +23,6 @@ import {
 import type {
   Finding,
   FindingsReport,
-  Severity,
   SeverityContext,
 } from '../findings/index.js';
 import type {
