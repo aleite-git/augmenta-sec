@@ -1,12 +1,13 @@
 /**
- * Git platform adapters — currently GitHub only.
+ * Git platform adapters — GitHub and Bitbucket.
  *
- * Re-exports the GitHub adapter and all shared types so consumers can
+ * Re-exports the platform adapters and all shared types so consumers can
  * import from a single entry point:
  *
- *   import { createGitHubAdapter, type GitPlatform } from './providers/git-platform/index.js';
+ *   import { createGitHubAdapter, createBitbucketAdapter, type GitPlatform } from './providers/git-platform/index.js';
  */
 
+export {createBitbucketAdapter, type BitbucketConfig} from './bitbucket.js';
 export {createGitHubAdapter, type GitHubConfig} from './github.js';
 export type {
   Branch,
