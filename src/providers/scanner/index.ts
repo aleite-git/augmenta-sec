@@ -11,6 +11,12 @@ export {createPipAuditScanner} from './pip-audit.js';
 export {createBanditScanner} from './bandit.js';
 export {createGosecScanner} from './gosec.js';
 export {createCargoAuditScanner} from './cargo-audit.js';
+export {createZapScanner} from './zap.js';
+export {
+  loadPluginFromFile,
+  createScannerRegistry,
+} from './plugin.js';
+export type {ScannerPlugin, PluginMetadata, ScannerRegistry} from './plugin.js';
 export {isBinaryAvailable, runCommand} from './utils.js';
 export type {RunCommandResult} from './utils.js';
 export type {
