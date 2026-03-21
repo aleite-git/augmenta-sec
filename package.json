@@ -17,6 +17,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@octokit/rest": "^22.0.1",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "fast-glob": "^3.3.3",
