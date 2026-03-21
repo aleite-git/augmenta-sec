@@ -7,7 +7,7 @@
  */
 
 import type {Finding} from '../findings/types.js';
-import type {LLMProvider, LLMRole} from '../providers/llm/types.js';
+import type {LLMProvider} from '../providers/llm/types.js';
 import type {RemediationSuggestion, EffortLevel} from './engine.js';
 
 // ---------------------------------------------------------------------------

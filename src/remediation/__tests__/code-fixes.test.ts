@@ -2,7 +2,7 @@ import {describe, it, expect} from 'vitest';
 
 import type {Finding} from '../../findings/types.js';
 import {generateCodeFix, getSupportedLanguages} from '../code-fixes.js';
-import type {FixLanguage} from '../code-fixes.js';
+
 
 // ---------------------------------------------------------------------------
 // Helpers
