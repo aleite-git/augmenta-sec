@@ -1,4 +1,5 @@
 import {basename} from 'node:path';
+import {DetectorError, withGracefulDegradation} from '../errors/index.js';
 import {createDetectorContext} from '../utils/file-utils.js';
 import {logger} from '../utils/logger.js';
 import type {SecurityProfile} from './types.js';
@@ -44,16 +45,27 @@ export async function runDiscovery(rootDir: string): Promise<DiscoveryResult> {
     detectors.map(async d => {
       const t0 = performance.now();
       logger.debug(`Running ${d.name} detector...`);
-      try {
-        const result = await d.fn();
+      const result = await withGracefulDegradation(
+        async () => {
+          try {
+            return await d.fn();
+          } catch (err) {
+            throw new DetectorError(
+              d.name,
+              err instanceof Error ? err.message : String(err),
+              err instanceof Error ? err : undefined,
+            );
+          }
+        },
+        null,
+        `${d.name} detector failed`,
+      );
+      if (result === null) {
+        warnings.push(`${d.name} detector failed`);
+      } else {
         logger.debug(`${d.name} completed in ${Math.round(performance.now() - t0)}ms`);
-        return {name: d.name, result};
-      } catch (err) {
-        const msg = `${d.name} detector failed: ${err instanceof Error ? err.message : String(err)}`;
-        warnings.push(msg);
-        logger.warn(msg);
-        return {name: d.name, result: null};
       }
+      return {name: d.name, result};
     }),
   );
 
