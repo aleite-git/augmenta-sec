@@ -24,11 +24,13 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@google/generative-ai": "^0.24.0",
     "@octokit/rest": "^22.0.1",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "fast-glob": "^3.3.3",
+    "openai": "^6.32.0",
     "yaml": "^2.7.1",
     "zod": "^3.25.76"
   },
