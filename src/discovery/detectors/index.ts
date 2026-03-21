@@ -6,3 +6,7 @@ export {apiDetector} from './api.js';
 export {securityControlsDetector} from './security-controls.js';
 export {ciDetector} from './ci.js';
 export {docsDetector} from './docs.js';
+export {pythonEcosystemDetector} from './python-ecosystem.js';
+export {goEcosystemDetector} from './go-ecosystem.js';
+export {rustEcosystemDetector} from './rust-ecosystem.js';
+export {jvmEcosystemDetector} from './jvm-ecosystem.js';

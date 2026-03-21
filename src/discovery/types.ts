@@ -189,6 +189,79 @@ export interface DocsInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Python ecosystem (ASEC-066)
+// ---------------------------------------------------------------------------
+
+export interface PythonEcosystemInfo {
+  detected: boolean;
+  packageManager: 'pip' | 'poetry' | 'pipenv' | 'pdm' | 'uv' | null;
+  projectFile?: string;
+  hasVirtualEnv: boolean;
+  virtualEnvPaths: string[];
+  hasPyprojectToml: boolean;
+  hasPoetryLock: boolean;
+  hasPipfileLock: boolean;
+  pythonVersion?: string;
+  frameworks: string[];
+  securityDeps: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Go ecosystem (ASEC-067)
+// ---------------------------------------------------------------------------
+
+export interface GoEcosystemInfo {
+  detected: boolean;
+  goModFile?: string;
+  goVersion?: string;
+  modulePath?: string;
+  hasGoSum: boolean;
+  directDeps: number;
+  indirectDeps: number;
+  frameworks: string[];
+  securityTools: string[];
+  hasVendor: boolean;
+  hasUnsafeImports: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Rust ecosystem (ASEC-068)
+// ---------------------------------------------------------------------------
+
+export interface RustEcosystemInfo {
+  detected: boolean;
+  cargoTomlFile?: string;
+  edition?: string;
+  rustVersion?: string;
+  hasCargoLock: boolean;
+  crateCount: number;
+  hasUnsafeBlocks: boolean;
+  unsafeFileCount: number;
+  frameworks: string[];
+  securityDeps: string[];
+  isWorkspace: boolean;
+  workspaceMembers: string[];
+}
+
+// ---------------------------------------------------------------------------
+// JVM ecosystem (ASEC-069)
+// ---------------------------------------------------------------------------
+
+export interface JvmEcosystemInfo {
+  detected: boolean;
+  buildTool: 'maven' | 'gradle' | 'sbt' | null;
+  buildFile?: string;
+  javaVersion?: string;
+  hasSpringBoot: boolean;
+  hasSpringSecurity: boolean;
+  frameworks: string[];
+  securityDeps: string[];
+  hasGradleLock: boolean;
+  hasMavenWrapper: boolean;
+  hasGradleWrapper: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Trust boundaries & PII (LLM-enhanced or manual)
 // ---------------------------------------------------------------------------
 
@@ -241,4 +314,8 @@ export interface SecurityProfile {
   docs: DocsInfo;
   trustBoundaries: TrustBoundaryInfo;
   piiFields: PiiInfo;
+  pythonEcosystem: PythonEcosystemInfo;
+  goEcosystem: GoEcosystemInfo;
+  rustEcosystem: RustEcosystemInfo;
+  jvmEcosystem: JvmEcosystemInfo;
 }

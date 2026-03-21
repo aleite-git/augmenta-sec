@@ -15,7 +15,7 @@ vi.mock('../../utils/logger.js', () => ({
   },
 }));
 
-// Mock all 8 detectors
+// Mock all 12 detectors
 vi.mock('../detectors/index.js', () => ({
   languageDetector: {name: 'language', detect: vi.fn()},
   frameworkDetector: {name: 'framework', detect: vi.fn()},
@@ -25,6 +25,10 @@ vi.mock('../detectors/index.js', () => ({
   securityControlsDetector: {name: 'security-controls', detect: vi.fn()},
   ciDetector: {name: 'ci', detect: vi.fn()},
   docsDetector: {name: 'docs', detect: vi.fn()},
+  pythonEcosystemDetector: {name: 'python-ecosystem', detect: vi.fn()},
+  goEcosystemDetector: {name: 'go-ecosystem', detect: vi.fn()},
+  rustEcosystemDetector: {name: 'rust-ecosystem', detect: vi.fn()},
+  jvmEcosystemDetector: {name: 'jvm-ecosystem', detect: vi.fn()},
 }));
 
 /** Sets up default mock return values for all detectors. */
@@ -61,6 +65,25 @@ async function setupDefaultMocks() {
     hasReadme: false, hasContributing: false, hasSecurityPolicy: false,
     hasChangelog: false, hasLicense: false, architectureDocs: [], aiConfigs: [],
   });
+  vi.mocked(detectors.pythonEcosystemDetector.detect).mockResolvedValue({
+    detected: false, packageManager: null, hasVirtualEnv: false, virtualEnvPaths: [],
+    hasPyprojectToml: false, hasPoetryLock: false, hasPipfileLock: false,
+    frameworks: [], securityDeps: [],
+  });
+  vi.mocked(detectors.goEcosystemDetector.detect).mockResolvedValue({
+    detected: false, hasGoSum: false, directDeps: 0, indirectDeps: 0,
+    frameworks: [], securityTools: [], hasVendor: false, hasUnsafeImports: false,
+  });
+  vi.mocked(detectors.rustEcosystemDetector.detect).mockResolvedValue({
+    detected: false, hasCargoLock: false, crateCount: 0, hasUnsafeBlocks: false,
+    unsafeFileCount: 0, frameworks: [], securityDeps: [],
+    isWorkspace: false, workspaceMembers: [],
+  });
+  vi.mocked(detectors.jvmEcosystemDetector.detect).mockResolvedValue({
+    detected: false, buildTool: null, hasSpringBoot: false, hasSpringSecurity: false,
+    frameworks: [], securityDeps: [], hasGradleLock: false,
+    hasMavenWrapper: false, hasGradleWrapper: false,
+  });
 
   return detectors;
 }
@@ -70,7 +93,7 @@ describe('runDiscovery', () => {
     vi.clearAllMocks();
   });
 
-  it('runs all 8 detectors in parallel and assembles a complete profile', async () => {
+  it('runs all 12 detectors in parallel and assembles a complete profile', async () => {
     const detectors = await setupDefaultMocks();
 
     // Override specific detectors with non-empty results
@@ -106,7 +129,7 @@ describe('runDiscovery', () => {
     const {runDiscovery} = await import('../engine.js');
     const result = await runDiscovery('/test');
 
-    // All 8 detectors should have been called
+    // All 12 detectors should have been called
     expect(detectors.languageDetector.detect).toHaveBeenCalledTimes(1);
     expect(detectors.frameworkDetector.detect).toHaveBeenCalledTimes(1);
     expect(detectors.authDetector.detect).toHaveBeenCalledTimes(1);
