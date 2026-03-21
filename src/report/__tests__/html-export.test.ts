@@ -4,8 +4,7 @@
 
 import {describe, it, expect} from 'vitest';
 import {exportHtml, escapeHtml} from '../html-export.js';
-import type {HtmlExportOptions} from '../html-export.js';
-import type {Finding, FindingsReport, Severity} from '../../findings/types.js';
+import type {Finding, FindingsReport} from '../../findings/types.js';
 import type {SecurityProfile} from '../../discovery/types.js';
 
 // ---------------------------------------------------------------------------
