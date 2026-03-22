@@ -1,45 +1,21 @@
 export type {
-  LLMCapabilities,
-  LLMConfig,
-  LLMGateway,
-  LLMMessage,
-  LLMProvider,
-  LLMResponse,
-  LLMRole,
-  ModelMapping,
+  LLMCapabilities, LLMConfig, LLMGateway, LLMMessage, LLMProvider, LLMResponse, LLMRole, ModelMapping,
 } from './types.js';
 
-export {createGateway, parseModelString} from './gateway.js';
-export {
-  createAnthropicProvider,
-  AnthropicProviderError,
-} from './anthropic.js';
+export type {AnalyzeOptions, ExtendedLLMGateway, FallbackConfig, GatewayOptions, TokenBudgetTracker} from './gateway.js';
+export {createGateway, parseModelString, TokenBudgetExceededError, AllProvidersFailedError} from './gateway.js';
+
+export {createAnthropicProvider, AnthropicProviderError} from './anthropic.js';
 export {createGeminiProvider, GeminiProviderError} from './gemini.js';
 export {createMistralProvider, MistralProviderError} from './mistral.js';
-export {
-  createOllamaProvider,
-  OllamaProviderError,
-  isAvailable as isOllamaAvailable,
-} from './ollama.js';
+export {createOllamaProvider, OllamaProviderError, isAvailable as isOllamaAvailable} from './ollama.js';
 export {createOpenAIProvider, OpenAIProviderError} from './openai.js';
 
 export type {Prompt, PromptLibrary} from './prompts.js';
 export {createPromptLibrary} from './prompts.js';
 
 export type {ValidationResult, RetryOptions} from './validation.js';
-export {
-  validateJsonResponse,
-  withRetry,
-  extractJsonFromMarkdown,
-  LLMValidationError,
-  LLMRetryExhaustedError,
-} from './validation.js';
+export {validateJsonResponse, withRetry, extractJsonFromMarkdown, LLMValidationError, LLMRetryExhaustedError} from './validation.js';
 
-export type {
-  CostEntry,
-  CostSummary,
-  CostTracker,
-  BudgetAlert,
-  BudgetAlertCallback,
-} from './cost-tracker.js';
+export type {CostEntry, CostSummary, CostTracker, BudgetAlert, BudgetAlertCallback} from './cost-tracker.js';
 export {createCostTracker} from './cost-tracker.js';

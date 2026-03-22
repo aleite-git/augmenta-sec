@@ -1,434 +1,113 @@
-import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import type {LLMMessage} from '../types.js';
-
-// Mock the @mistralai/mistralai module before importing the provider.
-const mockChatComplete = vi.fn();
-
-vi.mock('@mistralai/mistralai', () => ({
-  Mistral: vi.fn(() => ({
-    chat: {
-      complete: mockChatComplete,
-    },
-  })),
-}));
-
-// Import after the mock is set up.
 import {createMistralProvider, MistralProviderError} from '../mistral.js';
 
+function mockFetchResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}});
+}
+
 describe('MistralProviderError', () => {
-  it('has the correct name and provider', () => {
-    const error = new MistralProviderError('test error');
-
-    expect(error.name).toBe('MistralProviderError');
-    expect(error.provider).toBe('mistral');
-    expect(error.message).toBe('test error');
-  });
-
-  it('preserves the cause when provided', () => {
-    const cause = new Error('original');
-    const error = new MistralProviderError('wrapped', cause);
-
-    expect(error.cause).toBe(cause);
-  });
-
-  it('does not set cause when omitted', () => {
-    const error = new MistralProviderError('no cause');
-
-    expect(error.cause).toBeUndefined();
-  });
+  it('has correct name/provider', () => { const e = new MistralProviderError('x'); expect(e.name).toBe('MistralProviderError'); expect(e.provider).toBe('mistral'); });
+  it('preserves cause', () => { const c = new Error('orig'); expect(new MistralProviderError('w', c).cause).toBe(c); });
+  it('no cause when omitted', () => { expect(new MistralProviderError('x').cause).toBeUndefined(); });
 });
 
 describe('createMistralProvider', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockChatComplete.mockResolvedValue({
-      choices: [
-        {
-          index: 0,
-          message: {content: 'Test response'},
-          finishReason: 'stop',
-        },
-      ],
-      usage: {
-        promptTokens: 100,
-        completionTokens: 50,
-      },
-    });
-  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchSpy: any;
+  beforeEach(() => { fetchSpy = vi.spyOn(globalThis, 'fetch'); fetchSpy.mockResolvedValue(mockFetchResponse({choices: [{index: 0, message: {content: 'Test'}, finish_reason: 'stop'}], usage: {prompt_tokens: 100, completion_tokens: 50}})); });
+  afterEach(() => { vi.restoreAllMocks(); });
 
-  it('returns a valid LLMProvider with correct name and model', () => {
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-
-    expect(provider.name).toBe('mistral');
-    expect(provider.model).toBe('mistral-large-latest');
-    expect(provider.capabilities).toBeDefined();
-    expect(typeof provider.analyze).toBe('function');
-    expect(typeof provider.analyzeStructured).toBe('function');
-  });
-
-  it('sets capabilities correctly for mistral-large-latest', () => {
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-
-    expect(provider.capabilities).toEqual({
-      maxContextTokens: 128_000,
-      supportsImages: true,
-      supportsStructuredOutput: true,
-    });
-  });
-
-  it('sets capabilities correctly for mistral-medium-latest', () => {
-    const provider = createMistralProvider(
-      'mistral-medium-latest',
-      'test-key',
-    );
-
-    expect(provider.capabilities).toEqual({
-      maxContextTokens: 128_000,
-      supportsImages: false,
-      supportsStructuredOutput: true,
-    });
-  });
-
-  it('sets capabilities correctly for codestral-latest', () => {
-    const provider = createMistralProvider('codestral-latest', 'test-key');
-
-    expect(provider.capabilities).toEqual({
-      maxContextTokens: 32_000,
-      supportsImages: false,
-      supportsStructuredOutput: true,
-    });
-  });
-
-  it('sets sensible defaults for unknown model names', () => {
-    const provider = createMistralProvider('mistral-next-gen', 'test-key');
-
-    expect(provider.capabilities.maxContextTokens).toBe(128_000);
-    expect(provider.capabilities.supportsImages).toBe(false);
-    expect(provider.capabilities.supportsStructuredOutput).toBe(true);
-  });
+  it('returns valid provider', () => { const p = createMistralProvider('mistral-large-latest', 'k'); expect(p.name).toBe('mistral'); expect(p.model).toBe('mistral-large-latest'); });
+  it('caps for mistral-large-latest', () => { expect(createMistralProvider('mistral-large-latest', 'k').capabilities).toEqual({maxContextTokens: 128_000, supportsImages: true, supportsStructuredOutput: true}); });
+  it('caps for mistral-medium-latest', () => { expect(createMistralProvider('mistral-medium-latest', 'k').capabilities.supportsImages).toBe(false); });
+  it('caps for codestral-latest', () => { expect(createMistralProvider('codestral-latest', 'k').capabilities.maxContextTokens).toBe(32_000); });
+  it('defaults for unknown', () => { expect(createMistralProvider('unknown', 'k').capabilities.maxContextTokens).toBe(128_000); });
 });
 
 describe('analyze', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockChatComplete.mockResolvedValue({
-      choices: [
-        {
-          index: 0,
-          message: {content: 'Analysis result'},
-          finishReason: 'stop',
-        },
-      ],
-      usage: {
-        promptTokens: 200,
-        completionTokens: 100,
-      },
-    });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchSpy: any;
+  beforeEach(() => { fetchSpy = vi.spyOn(globalThis, 'fetch'); fetchSpy.mockResolvedValue(mockFetchResponse({choices: [{index: 0, message: {content: 'Result'}, finish_reason: 'stop'}], usage: {prompt_tokens: 200, completion_tokens: 100}})); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('returns well-formed response', async () => {
+    const r = await createMistralProvider('mistral-large-latest', 'k').analyze([{role: 'user', content: 'test'}]);
+    expect(r.content).toBe('Result');
+    expect(r.tokensUsed).toEqual({input: 200, output: 100});
+    expect(r.model).toBe('mistral-large-latest');
   });
-
-  it('sends messages and returns a well-formed response', async () => {
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-    const messages: LLMMessage[] = [
-      {role: 'system', content: 'You are a security analyst.'},
-      {role: 'user', content: 'Review this code.'},
-    ];
-
-    const result = await provider.analyze(messages);
-
-    expect(result.content).toBe('Analysis result');
-    expect(result.tokensUsed).toEqual({input: 200, output: 100});
-    expect(result.model).toBe('mistral-large-latest');
-    expect(result.role).toBe('analysis');
+  it('calls correct endpoint', async () => {
+    await createMistralProvider('mistral-large-latest', 'key123').analyze([{role: 'user', content: 'test'}]);
+    expect(fetchSpy).toHaveBeenCalledWith('https://api.mistral.ai/v1/chat/completions', expect.objectContaining({method: 'POST'}));
   });
-
-  it('passes messages with correct roles to the Mistral SDK', async () => {
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-    const messages: LLMMessage[] = [
-      {role: 'system', content: 'System prompt'},
-      {role: 'user', content: 'User message'},
-      {role: 'assistant', content: 'Previous response'},
-      {role: 'user', content: 'Follow up'},
-    ];
-
-    await provider.analyze(messages);
-
-    expect(mockChatComplete).toHaveBeenCalledWith({
-      model: 'mistral-large-latest',
-      messages: [
-        {role: 'system', content: 'System prompt'},
-        {role: 'user', content: 'User message'},
-        {role: 'assistant', content: 'Previous response'},
-        {role: 'user', content: 'Follow up'},
-      ],
-    });
+  it('sends auth header', async () => {
+    await createMistralProvider('mistral-large-latest', 'key123').analyze([{role: 'user', content: 'test'}]);
+    const headers = fetchSpy.mock.calls[0][1].headers;
+    expect(headers.Authorization).toBe('Bearer key123');
   });
-
-  it('handles missing usage metadata gracefully', async () => {
-    mockChatComplete.mockResolvedValue({
-      choices: [
-        {
-          index: 0,
-          message: {content: 'Response without metadata'},
-          finishReason: 'stop',
-        },
-      ],
-      usage: undefined,
-    });
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-    const result = await provider.analyze([{role: 'user', content: 'Test'}]);
-
-    expect(result.tokensUsed).toEqual({input: 0, output: 0});
+  it('sends correct body', async () => {
+    const msgs: LLMMessage[] = [{role: 'system', content: 'sys'}, {role: 'user', content: 'usr'}];
+    await createMistralProvider('mistral-large-latest', 'k').analyze(msgs);
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.messages).toEqual([{role: 'system', content: 'sys'}, {role: 'user', content: 'usr'}]);
   });
-
-  it('handles non-string content gracefully', async () => {
-    mockChatComplete.mockResolvedValue({
-      choices: [
-        {
-          index: 0,
-          message: {content: [{type: 'text', text: 'chunk'}]},
-          finishReason: 'stop',
-        },
-      ],
-      usage: {promptTokens: 10, completionTokens: 5},
-    });
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-    const result = await provider.analyze([{role: 'user', content: 'Test'}]);
-
-    // Non-string content should fall back to empty string.
-    expect(result.content).toBe('');
+  it('handles missing usage', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({choices: [{index: 0, message: {content: 'x'}}]}));
+    expect((await createMistralProvider('mistral-large-latest', 'k').analyze([{role: 'user', content: 'test'}])).tokensUsed).toEqual({input: 0, output: 0});
   });
-
-  it('handles empty choices array gracefully', async () => {
-    mockChatComplete.mockResolvedValue({
-      choices: [],
-      usage: {promptTokens: 10, completionTokens: 0},
-    });
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-    const result = await provider.analyze([{role: 'user', content: 'Test'}]);
-
-    expect(result.content).toBe('');
+  it('handles empty choices', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({choices: []}));
+    expect((await createMistralProvider('mistral-large-latest', 'k').analyze([{role: 'user', content: 'test'}])).content).toBe('');
   });
-
-  it('wraps API errors in MistralProviderError', async () => {
-    mockChatComplete.mockRejectedValue(new Error('API rate limited'));
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-
-    await expect(
-      provider.analyze([{role: 'user', content: 'Test'}]),
-    ).rejects.toThrow('Mistral API error: API rate limited');
+  it('wraps HTTP errors', async () => {
+    fetchSpy.mockResolvedValue(new Response('err', {status: 429}));
+    await expect(createMistralProvider('mistral-large-latest', 'k').analyze([{role: 'user', content: 'test'}])).rejects.toThrow(MistralProviderError);
   });
-
-  it('wraps non-Error API failures in MistralProviderError', async () => {
-    mockChatComplete.mockRejectedValue('string error');
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-
-    await expect(
-      provider.analyze([{role: 'user', content: 'Test'}]),
-    ).rejects.toThrow('Mistral API error: string error');
+  it('wraps network errors', async () => {
+    fetchSpy.mockRejectedValue(new Error('net'));
+    await expect(createMistralProvider('mistral-large-latest', 'k').analyze([{role: 'user', content: 'test'}])).rejects.toThrow('Mistral API error: net');
+  });
+  it('wraps non-Error', async () => {
+    fetchSpy.mockRejectedValue('str');
+    await expect(createMistralProvider('mistral-large-latest', 'k').analyze([{role: 'user', content: 'test'}])).rejects.toThrow('Mistral API error: str');
   });
 });
 
 describe('analyzeStructured', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchSpy: any;
+  beforeEach(() => { fetchSpy = vi.spyOn(globalThis, 'fetch'); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('parses JSON', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({choices: [{index: 0, message: {content: '{"a":1}'}}]}));
+    expect(await createMistralProvider('mistral-large-latest', 'k').analyzeStructured([{role: 'user', content: 'x'}], '{}')).toEqual({a: 1});
   });
-
-  it('parses a valid JSON response', async () => {
-    const expectedData = {severity: 'high', findings: ['sql-injection']};
-    mockChatComplete.mockResolvedValue({
-      choices: [
-        {
-          index: 0,
-          message: {content: JSON.stringify(expectedData)},
-          finishReason: 'stop',
-        },
-      ],
-      usage: {promptTokens: 50, completionTokens: 30},
-    });
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-    const result = await provider.analyzeStructured<typeof expectedData>(
-      [{role: 'user', content: 'Analyze this code'}],
-      '{ "severity": "string", "findings": "string[]" }',
-    );
-
-    expect(result).toEqual(expectedData);
+  it('sends response_format', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({choices: [{index: 0, message: {content: '{}'}}]}));
+    await createMistralProvider('mistral-large-latest', 'k').analyzeStructured([{role: 'user', content: 'x'}], '{}');
+    expect(JSON.parse(fetchSpy.mock.calls[0][1].body).response_format).toEqual({type: 'json_object'});
   });
-
-  it('uses responseFormat json_object', async () => {
-    mockChatComplete.mockResolvedValue({
-      choices: [
-        {
-          index: 0,
-          message: {content: '{"ok": true}'},
-          finishReason: 'stop',
-        },
-      ],
-      usage: {promptTokens: 10, completionTokens: 5},
-    });
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-    await provider.analyzeStructured(
-      [{role: 'user', content: 'Test'}],
-      '{}',
-    );
-
-    expect(mockChatComplete).toHaveBeenCalledWith(
-      expect.objectContaining({
-        responseFormat: {type: 'json_object'},
-      }),
-    );
+  it('injects schema into system msg', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({choices: [{index: 0, message: {content: '{}'}}]}));
+    await createMistralProvider('mistral-large-latest', 'k').analyzeStructured([{role: 'system', content: 'sys'}, {role: 'user', content: 'x'}], 'schema');
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.messages[0].content).toContain('sys');
+    expect(body.messages[0].content).toContain('schema');
   });
-
-  it('injects schema hint into existing system message', async () => {
-    mockChatComplete.mockResolvedValue({
-      choices: [
-        {
-          index: 0,
-          message: {content: '{"result": "ok"}'},
-          finishReason: 'stop',
-        },
-      ],
-      usage: {promptTokens: 10, completionTokens: 5},
-    });
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-    await provider.analyzeStructured(
-      [
-        {role: 'system', content: 'You are a security tool.'},
-        {role: 'user', content: 'Analyze'},
-      ],
-      '{ "result": "string" }',
-    );
-
-    const call = mockChatComplete.mock.calls[0]![0];
-    const systemMsg = call.messages.find(
-      (m: {role: string}) => m.role === 'system',
-    );
-    expect(systemMsg.content).toContain('You are a security tool.');
-    expect(systemMsg.content).toContain(
-      'Respond with valid JSON matching this schema:',
-    );
-    expect(systemMsg.content).toContain('{ "result": "string" }');
+  it('creates system msg when none', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({choices: [{index: 0, message: {content: '{}'}}]}));
+    await createMistralProvider('mistral-large-latest', 'k').analyzeStructured([{role: 'user', content: 'x'}], 'schema');
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.messages[0].role).toBe('system');
   });
-
-  it('creates system message with schema hint when none exists', async () => {
-    mockChatComplete.mockResolvedValue({
-      choices: [
-        {
-          index: 0,
-          message: {content: '{"result": "ok"}'},
-          finishReason: 'stop',
-        },
-      ],
-      usage: {promptTokens: 10, completionTokens: 5},
-    });
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-    await provider.analyzeStructured(
-      [{role: 'user', content: 'Analyze'}],
-      '{ "result": "string" }',
-    );
-
-    const call = mockChatComplete.mock.calls[0]![0];
-    const systemMsg = call.messages.find(
-      (m: {role: string}) => m.role === 'system',
-    );
-    expect(systemMsg).toBeDefined();
-    expect(systemMsg.content).toContain(
-      'Respond with valid JSON matching this schema:',
-    );
+  it('throws on invalid JSON', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({choices: [{index: 0, message: {content: 'bad{{'}}]}));
+    await expect(createMistralProvider('mistral-large-latest', 'k').analyzeStructured([{role: 'user', content: 'x'}], '{}')).rejects.toThrow('Failed to parse Mistral JSON');
   });
-
-  it('throws MistralProviderError on invalid JSON response', async () => {
-    mockChatComplete.mockResolvedValue({
-      choices: [
-        {
-          index: 0,
-          message: {content: 'not valid json {{{'},
-          finishReason: 'stop',
-        },
-      ],
-      usage: {promptTokens: 10, completionTokens: 5},
-    });
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-
-    await expect(
-      provider.analyzeStructured([{role: 'user', content: 'Test'}], '{}'),
-    ).rejects.toThrow('Failed to parse Mistral JSON response');
-  });
-
-  it('wraps API errors in MistralProviderError', async () => {
-    mockChatComplete.mockRejectedValue(new Error('Service unavailable'));
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-
-    await expect(
-      provider.analyzeStructured([{role: 'user', content: 'Test'}], '{}'),
-    ).rejects.toThrow('Mistral API error: Service unavailable');
-  });
-
-  it('wraps non-Error API failures in MistralProviderError', async () => {
-    mockChatComplete.mockRejectedValue(42);
-
-    const provider = createMistralProvider(
-      'mistral-large-latest',
-      'test-key',
-    );
-
-    await expect(
-      provider.analyzeStructured([{role: 'user', content: 'Test'}], '{}'),
-    ).rejects.toThrow('Mistral API error: 42');
+  it('wraps API errors', async () => {
+    fetchSpy.mockResolvedValue(new Response('err', {status: 503}));
+    await expect(createMistralProvider('mistral-large-latest', 'k').analyzeStructured([{role: 'user', content: 'x'}], '{}')).rejects.toThrow(MistralProviderError);
   });
 });

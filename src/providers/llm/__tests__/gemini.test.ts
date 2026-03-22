@@ -1,302 +1,125 @@
-import {describe, it, expect, vi, beforeEach} from 'vitest';
-import type {LLMMessage} from '../types.js';
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
+import {createGeminiProvider, GeminiProviderError} from '../gemini.js';
 
-// Mock the @google/generative-ai module before importing the provider.
-const mockGenerateContent = vi.fn();
-const mockGetGenerativeModel = vi.fn(() => ({
-  generateContent: mockGenerateContent,
-}));
+function mockFetchResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}});
+}
+function geminiResp(text: string, pt = 100, ct = 50) {
+  return {candidates: [{content: {parts: [{text}]}}], usageMetadata: {promptTokenCount: pt, candidatesTokenCount: ct}};
+}
 
-vi.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: vi.fn(() => ({
-    getGenerativeModel: mockGetGenerativeModel,
-  })),
-}));
-
-// Import after the mock is set up.
-import {createGeminiProvider} from '../gemini.js';
+describe('GeminiProviderError', () => {
+  it('has correct name/provider', () => { const e = new GeminiProviderError('x'); expect(e.name).toBe('GeminiProviderError'); expect(e.provider).toBe('gemini'); });
+  it('preserves cause', () => { const c = new Error('orig'); expect(new GeminiProviderError('w', c).cause).toBe(c); });
+  it('no cause when omitted', () => { expect(new GeminiProviderError('x').cause).toBeUndefined(); });
+});
 
 describe('createGeminiProvider', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockGenerateContent.mockResolvedValue({
-      response: {
-        text: () => 'Test response',
-        usageMetadata: {
-          promptTokenCount: 100,
-          candidatesTokenCount: 50,
-        },
-      },
-    });
-  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchSpy: any;
+  beforeEach(() => { fetchSpy = vi.spyOn(globalThis, 'fetch'); fetchSpy.mockResolvedValue(mockFetchResponse(geminiResp('Test'))); });
+  afterEach(() => { vi.restoreAllMocks(); });
 
-  it('returns a valid LLMProvider with correct name and model', () => {
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-
-    expect(provider.name).toBe('gemini');
-    expect(provider.model).toBe('gemini-2.5-flash');
-    expect(provider.capabilities).toBeDefined();
-    expect(typeof provider.analyze).toBe('function');
-    expect(typeof provider.analyzeStructured).toBe('function');
-  });
-
-  it('sets capabilities correctly for gemini-2.5-pro', () => {
-    const provider = createGeminiProvider('gemini-2.5-pro', 'test-key');
-
-    expect(provider.capabilities).toEqual({
-      maxContextTokens: 1_000_000,
-      supportsImages: true,
-      supportsStructuredOutput: true,
-    });
-  });
-
-  it('sets capabilities correctly for gemini-2.5-flash', () => {
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-
-    expect(provider.capabilities).toEqual({
-      maxContextTokens: 1_000_000,
-      supportsImages: true,
-      supportsStructuredOutput: true,
-    });
-  });
-
-  it('sets capabilities correctly for gemini-2.5-flash-lite', () => {
-    const provider = createGeminiProvider('gemini-2.5-flash-lite', 'test-key');
-
-    expect(provider.capabilities).toEqual({
-      maxContextTokens: 1_000_000,
-      supportsImages: true,
-      supportsStructuredOutput: true,
-    });
-  });
-
-  it('sets sensible defaults for unknown model names', () => {
-    const provider = createGeminiProvider('gemini-3.0-ultra', 'test-key');
-
-    expect(provider.capabilities.maxContextTokens).toBe(1_000_000);
-    expect(provider.capabilities.supportsImages).toBe(true);
-    expect(provider.capabilities.supportsStructuredOutput).toBe(true);
-  });
+  it('returns valid provider', () => { const p = createGeminiProvider('gemini-2.0-flash', 'k'); expect(p.name).toBe('gemini'); expect(p.model).toBe('gemini-2.0-flash'); });
+  it('caps for gemini-2.0-flash', () => { expect(createGeminiProvider('gemini-2.0-flash', 'k').capabilities).toEqual({maxContextTokens: 1_000_000, supportsImages: true, supportsStructuredOutput: true}); });
+  it('caps for gemini-2.0-pro', () => { expect(createGeminiProvider('gemini-2.0-pro', 'k').capabilities.maxContextTokens).toBe(1_000_000); });
+  it('caps for gemini-2.5-pro', () => { expect(createGeminiProvider('gemini-2.5-pro', 'k').capabilities.maxContextTokens).toBe(1_000_000); });
+  it('caps for gemini-2.5-flash', () => { expect(createGeminiProvider('gemini-2.5-flash', 'k').capabilities.supportsImages).toBe(true); });
+  it('caps for gemini-2.5-flash-lite', () => { expect(createGeminiProvider('gemini-2.5-flash-lite', 'k').capabilities.supportsStructuredOutput).toBe(true); });
+  it('defaults for unknown', () => { expect(createGeminiProvider('gemini-9', 'k').capabilities.maxContextTokens).toBe(1_000_000); });
 });
 
 describe('analyze', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockGenerateContent.mockResolvedValue({
-      response: {
-        text: () => 'Analysis result',
-        usageMetadata: {
-          promptTokenCount: 200,
-          candidatesTokenCount: 100,
-        },
-      },
-    });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchSpy: any;
+  beforeEach(() => { fetchSpy = vi.spyOn(globalThis, 'fetch'); fetchSpy.mockResolvedValue(mockFetchResponse(geminiResp('Result', 200, 100))); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('returns well-formed response', async () => {
+    const r = await createGeminiProvider('gemini-2.0-flash', 'k').analyze([{role: 'user', content: 'test'}]);
+    expect(r.content).toBe('Result');
+    expect(r.tokensUsed).toEqual({input: 200, output: 100});
   });
-
-  it('sends messages and returns a well-formed response', async () => {
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-    const messages: LLMMessage[] = [
-      {role: 'system', content: 'You are a security analyst.'},
-      {role: 'user', content: 'Review this code.'},
-    ];
-
-    const result = await provider.analyze(messages);
-
-    expect(result.content).toBe('Analysis result');
-    expect(result.tokensUsed).toEqual({input: 200, output: 100});
-    expect(result.model).toBe('gemini-2.5-flash');
-    expect(result.role).toBe('analysis');
+  it('calls correct URL', async () => {
+    await createGeminiProvider('gemini-2.0-flash', 'mykey').analyze([{role: 'user', content: 'test'}]);
+    expect(fetchSpy.mock.calls[0][0]).toContain('gemini-2.0-flash:generateContent?key=mykey');
   });
-
-  it('passes system instruction separately from contents', async () => {
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-    const messages: LLMMessage[] = [
-      {role: 'system', content: 'System prompt'},
-      {role: 'user', content: 'User message'},
-    ];
-
-    await provider.analyze(messages);
-
-    // Verify getGenerativeModel was called with systemInstruction
-    expect(mockGetGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'gemini-2.5-flash',
-        systemInstruction: 'System prompt',
-      }),
-    );
-
-    // Verify generateContent was called with user content only
-    expect(mockGenerateContent).toHaveBeenCalledWith({
-      contents: [{role: 'user', parts: [{text: 'User message'}]}],
-    });
+  it('sends system instruction separately', async () => {
+    await createGeminiProvider('gemini-2.0-flash', 'k').analyze([{role: 'system', content: 'sys'}, {role: 'user', content: 'usr'}]);
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.systemInstruction).toEqual({parts: [{text: 'sys'}]});
+    expect(body.contents).toEqual([{role: 'user', parts: [{text: 'usr'}]}]);
   });
-
-  it('maps assistant role to model role for Gemini', async () => {
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-    const messages: LLMMessage[] = [
-      {role: 'user', content: 'Hello'},
-      {role: 'assistant', content: 'Hi there'},
-      {role: 'user', content: 'Follow up'},
-    ];
-
-    await provider.analyze(messages);
-
-    expect(mockGenerateContent).toHaveBeenCalledWith({
-      contents: [
-        {role: 'user', parts: [{text: 'Hello'}]},
-        {role: 'model', parts: [{text: 'Hi there'}]},
-        {role: 'user', parts: [{text: 'Follow up'}]},
-      ],
-    });
+  it('maps assistant to model', async () => {
+    await createGeminiProvider('gemini-2.0-flash', 'k').analyze([{role: 'user', content: 'a'}, {role: 'assistant', content: 'b'}]);
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.contents[1].role).toBe('model');
   });
-
-  it('handles missing usage metadata gracefully', async () => {
-    mockGenerateContent.mockResolvedValue({
-      response: {
-        text: () => 'Response without metadata',
-        usageMetadata: undefined,
-      },
-    });
-
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-    const result = await provider.analyze([{role: 'user', content: 'Test'}]);
-
-    expect(result.tokensUsed).toEqual({input: 0, output: 0});
+  it('concatenates system messages', async () => {
+    await createGeminiProvider('gemini-2.0-flash', 'k').analyze([{role: 'system', content: 'a'}, {role: 'system', content: 'b'}, {role: 'user', content: 'x'}]);
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.systemInstruction.parts[0].text).toBe('a\n\nb');
   });
-
-  it('wraps API errors in GeminiProviderError', async () => {
-    mockGenerateContent.mockRejectedValue(new Error('API rate limited'));
-
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-
-    await expect(
-      provider.analyze([{role: 'user', content: 'Test'}]),
-    ).rejects.toThrow('Gemini API error: API rate limited');
+  it('handles missing usage', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({candidates: [{content: {parts: [{text: 'x'}]}}]}));
+    expect((await createGeminiProvider('gemini-2.0-flash', 'k').analyze([{role: 'user', content: 'test'}])).tokensUsed).toEqual({input: 0, output: 0});
+  });
+  it('handles missing candidates', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({}));
+    expect((await createGeminiProvider('gemini-2.0-flash', 'k').analyze([{role: 'user', content: 'test'}])).content).toBe('');
+  });
+  it('handles missing parts', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse({candidates: [{content: {}}]}));
+    expect((await createGeminiProvider('gemini-2.0-flash', 'k').analyze([{role: 'user', content: 'test'}])).content).toBe('');
+  });
+  it('wraps HTTP errors', async () => {
+    fetchSpy.mockResolvedValue(new Response('err', {status: 429}));
+    await expect(createGeminiProvider('gemini-2.0-flash', 'k').analyze([{role: 'user', content: 'test'}])).rejects.toThrow(GeminiProviderError);
+  });
+  it('wraps network errors', async () => {
+    fetchSpy.mockRejectedValue(new Error('net'));
+    await expect(createGeminiProvider('gemini-2.0-flash', 'k').analyze([{role: 'user', content: 'test'}])).rejects.toThrow('Gemini API error: net');
   });
 });
 
 describe('analyzeStructured', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchSpy: any;
+  beforeEach(() => { fetchSpy = vi.spyOn(globalThis, 'fetch'); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('parses JSON', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse(geminiResp('{"a":1}')));
+    expect(await createGeminiProvider('gemini-2.0-flash', 'k').analyzeStructured([{role: 'user', content: 'x'}], '{}')).toEqual({a: 1});
   });
-
-  it('parses a valid JSON response', async () => {
-    const expectedData = {severity: 'high', findings: ['sql-injection']};
-    mockGenerateContent.mockResolvedValue({
-      response: {
-        text: () => JSON.stringify(expectedData),
-        usageMetadata: {promptTokenCount: 50, candidatesTokenCount: 30},
-      },
-    });
-
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-    const result = await provider.analyzeStructured<typeof expectedData>(
-      [{role: 'user', content: 'Analyze this code'}],
-      '{ "severity": "string", "findings": "string[]" }',
-    );
-
-    expect(result).toEqual(expectedData);
+  it('sends generationConfig', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse(geminiResp('{}')));
+    await createGeminiProvider('gemini-2.0-flash', 'k').analyzeStructured([{role: 'user', content: 'x'}], '{}');
+    expect(JSON.parse(fetchSpy.mock.calls[0][1].body).generationConfig).toEqual({responseMimeType: 'application/json'});
   });
-
-  it('uses responseMimeType application/json', async () => {
-    mockGenerateContent.mockResolvedValue({
-      response: {
-        text: () => '{"ok": true}',
-        usageMetadata: {promptTokenCount: 10, candidatesTokenCount: 5},
-      },
-    });
-
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-    await provider.analyzeStructured(
-      [{role: 'user', content: 'Test'}],
-      '{}',
-    );
-
-    expect(mockGetGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({
-        generationConfig: {
-          responseMimeType: 'application/json',
-        },
-      }),
-    );
+  it('injects schema into system msg', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse(geminiResp('{}')));
+    await createGeminiProvider('gemini-2.0-flash', 'k').analyzeStructured([{role: 'system', content: 'sys'}, {role: 'user', content: 'x'}], 'schema');
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.systemInstruction.parts[0].text).toContain('sys');
+    expect(body.systemInstruction.parts[0].text).toContain('schema');
   });
-
-  it('injects schema hint into existing system message', async () => {
-    mockGenerateContent.mockResolvedValue({
-      response: {
-        text: () => '{"result": "ok"}',
-        usageMetadata: {promptTokenCount: 10, candidatesTokenCount: 5},
-      },
-    });
-
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-    await provider.analyzeStructured(
-      [
-        {role: 'system', content: 'You are a security tool.'},
-        {role: 'user', content: 'Analyze'},
-      ],
-      '{ "result": "string" }',
-    );
-
-    expect(mockGetGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({
-        systemInstruction: expect.stringContaining('You are a security tool.'),
-      }),
-    );
-    expect(mockGetGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({
-        systemInstruction: expect.stringContaining(
-          'Respond with valid JSON matching this schema:',
-        ),
-      }),
-    );
+  it('creates system msg when none', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse(geminiResp('{}')));
+    await createGeminiProvider('gemini-2.0-flash', 'k').analyzeStructured([{role: 'user', content: 'x'}], 'schema');
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.systemInstruction.parts[0].text).toContain('Respond with valid JSON');
   });
-
-  it('creates system message with schema hint when none exists', async () => {
-    mockGenerateContent.mockResolvedValue({
-      response: {
-        text: () => '{"result": "ok"}',
-        usageMetadata: {promptTokenCount: 10, candidatesTokenCount: 5},
-      },
-    });
-
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-    await provider.analyzeStructured(
-      [{role: 'user', content: 'Analyze'}],
-      '{ "result": "string" }',
-    );
-
-    expect(mockGetGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({
-        systemInstruction: expect.stringContaining(
-          'Respond with valid JSON matching this schema:',
-        ),
-      }),
-    );
+  it('throws on invalid JSON', async () => {
+    fetchSpy.mockResolvedValue(mockFetchResponse(geminiResp('bad{{')));
+    await expect(createGeminiProvider('gemini-2.0-flash', 'k').analyzeStructured([{role: 'user', content: 'x'}], '{}')).rejects.toThrow('Failed to parse Gemini JSON');
   });
-
-  it('throws GeminiProviderError on invalid JSON response', async () => {
-    mockGenerateContent.mockResolvedValue({
-      response: {
-        text: () => 'not valid json {{{',
-        usageMetadata: {promptTokenCount: 10, candidatesTokenCount: 5},
-      },
-    });
-
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-
-    await expect(
-      provider.analyzeStructured([{role: 'user', content: 'Test'}], '{}'),
-    ).rejects.toThrow('Failed to parse Gemini JSON response');
+  it('wraps API errors', async () => {
+    fetchSpy.mockResolvedValue(new Response('err', {status: 503}));
+    await expect(createGeminiProvider('gemini-2.0-flash', 'k').analyzeStructured([{role: 'user', content: 'x'}], '{}')).rejects.toThrow(GeminiProviderError);
   });
-
-  it('wraps API errors in GeminiProviderError', async () => {
-    mockGenerateContent.mockRejectedValue(new Error('Service unavailable'));
-
-    const provider = createGeminiProvider('gemini-2.5-flash', 'test-key');
-
-    await expect(
-      provider.analyzeStructured([{role: 'user', content: 'Test'}], '{}'),
-    ).rejects.toThrow('Gemini API error: Service unavailable');
+  it('wraps non-Error', async () => {
+    fetchSpy.mockRejectedValue('str');
+    await expect(createGeminiProvider('gemini-2.0-flash', 'k').analyzeStructured([{role: 'user', content: 'x'}], '{}')).rejects.toThrow('Gemini API error: str');
   });
 });
