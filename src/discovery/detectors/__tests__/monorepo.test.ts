@@ -169,4 +169,39 @@ describe('monorepoDetector', () => {
     expect(result.workspaces).toHaveLength(1);
     expect(result.workspaces[0].type).toBe('app');
   });
+
+  it('handles workspace patterns ending with /**', async () => {
+    const ctx = createMockContext({
+      'package.json': JSON.stringify({
+        name: 'deep-workspaces',
+        workspaces: ['modules/**'],
+      }),
+      'modules/core/package.json': JSON.stringify({
+        name: '@deep/core',
+      }),
+    });
+
+    const result = await monorepoDetector.detect(ctx);
+    expect(result.isMonorepo).toBe(true);
+    expect(result.workspaces).toHaveLength(1);
+    expect(result.workspaces[0].name).toBe('@deep/core');
+  });
+
+  it('handles workspace patterns without trailing glob', async () => {
+    const ctx = createMockContext({
+      'package.json': JSON.stringify({
+        name: 'exact-workspaces',
+        workspaces: ['tools/builder'],
+      }),
+      'tools/builder/package.json': JSON.stringify({
+        name: '@ws/builder',
+        main: 'index.js',
+      }),
+    });
+
+    const result = await monorepoDetector.detect(ctx);
+    expect(result.isMonorepo).toBe(true);
+    expect(result.workspaces).toHaveLength(1);
+    expect(result.workspaces[0].type).toBe('app');
+  });
 });

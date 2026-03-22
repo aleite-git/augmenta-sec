@@ -181,4 +181,67 @@ describe('iacDetector', () => {
     expect(toolNames).toContain('terraform');
     expect(toolNames).toContain('helm');
   });
+
+  it('detects standalone template.yaml as CloudFormation', async () => {
+    const ctx = createMockContext({
+      'template.yaml':
+        'AWSTemplateFormatVersion: "2010-09-09"\nResources:\n  MyFunc:\n    Type: AWS::Lambda::Function\n',
+      'package.json': JSON.stringify({name: 'sam-app'}),
+    });
+
+    const result = await iacDetector.detect(ctx);
+    const cfn = result.tools.find(t => t.tool === 'cloudformation');
+    expect(cfn).toBeDefined();
+    expect(cfn!.files).toContain('template.yaml');
+  });
+
+  it('detects standalone template.yml as CloudFormation', async () => {
+    const ctx = createMockContext({
+      'template.yml':
+        'AWSTemplateFormatVersion: "2010-09-09"\nResources: {}\n',
+      'package.json': JSON.stringify({name: 'sam-app'}),
+    });
+
+    const result = await iacDetector.detect(ctx);
+    const cfn = result.tools.find(t => t.tool === 'cloudformation');
+    expect(cfn).toBeDefined();
+    expect(cfn!.files).toContain('template.yml');
+  });
+
+  it('detects standalone template.json as CloudFormation', async () => {
+    const ctx = createMockContext({
+      'template.json':
+        '{"AWSTemplateFormatVersion": "2010-09-09", "Resources": {}}',
+      'package.json': JSON.stringify({name: 'sam-app'}),
+    });
+
+    const result = await iacDetector.detect(ctx);
+    const cfn = result.tools.find(t => t.tool === 'cloudformation');
+    expect(cfn).toBeDefined();
+    expect(cfn!.files).toContain('template.json');
+  });
+
+  it('ignores standalone template without CloudFormation marker', async () => {
+    const ctx = createMockContext({
+      'template.yaml': 'just: some\nrandom: yaml\n',
+      'package.json': JSON.stringify({name: 'app'}),
+    });
+
+    const result = await iacDetector.detect(ctx);
+    const cfn = result.tools.find(t => t.tool === 'cloudformation');
+    expect(cfn).toBeUndefined();
+  });
+
+  it('detects CDK from scoped @aws-cdk packages', async () => {
+    const ctx = createMockContext({
+      'package.json': JSON.stringify({
+        devDependencies: {'@aws-cdk/core': '^1.130.0'},
+      }),
+    });
+
+    const result = await iacDetector.detect(ctx);
+    const cdk = result.tools.find(t => t.tool === 'cdk');
+    expect(cdk).toBeDefined();
+    expect(cdk!.providers).toContain('aws');
+  });
 });

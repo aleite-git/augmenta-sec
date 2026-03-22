@@ -206,4 +206,175 @@ describe('licenseDetector', () => {
     );
     expect(sspl?.risk).toBe('restrictive');
   });
+
+  it('detects GPL-2.0 license from content', async () => {
+    const ctx = createMockContext({
+      LICENSE:
+        'GNU GENERAL PUBLIC LICENSE\nVersion 2, June 1991\nCopyright...',
+      'package.json': JSON.stringify({name: 'test'}),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    expect(result.projectLicense).toBe('GPL-2.0');
+  });
+
+  it('detects AGPL-3.0 license from content', async () => {
+    const ctx = createMockContext({
+      LICENSE:
+        'GNU AFFERO GENERAL PUBLIC LICENSE\nVersion 3, 19 November 2007\n...',
+      'package.json': JSON.stringify({name: 'test'}),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    expect(result.projectLicense).toBe('AGPL-3.0');
+  });
+
+  it('detects LGPL-3.0 license from content', async () => {
+    const ctx = createMockContext({
+      LICENSE:
+        'GNU LESSER GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n...',
+      'package.json': JSON.stringify({name: 'test'}),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    expect(result.projectLicense).toBe('LGPL-3.0');
+  });
+
+  it('detects BSD-3-Clause from content', async () => {
+    const ctx = createMockContext({
+      LICENSE: 'BSD 3-Clause License\n\nCopyright (c) 2024...',
+      'package.json': JSON.stringify({name: 'test'}),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    expect(result.projectLicense).toBe('BSD-3-Clause');
+  });
+
+  it('detects BSD-2-Clause from content', async () => {
+    const ctx = createMockContext({
+      LICENSE: 'Simplified BSD License\n\nCopyright (c) 2024...',
+      'package.json': JSON.stringify({name: 'test'}),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    expect(result.projectLicense).toBe('BSD-2-Clause');
+  });
+
+  it('detects MPL-2.0 from content', async () => {
+    const ctx = createMockContext({
+      LICENSE: 'Mozilla Public License Version 2.0\n...',
+      'package.json': JSON.stringify({name: 'test'}),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    expect(result.projectLicense).toBe('MPL-2.0');
+  });
+
+  it('detects Unlicense from content', async () => {
+    const ctx = createMockContext({
+      LICENSE:
+        'This is free and unencumbered software released into the public domain.\n\nThe Unlicense...',
+      'package.json': JSON.stringify({name: 'test'}),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    expect(result.projectLicense).toBe('Unlicense');
+  });
+
+  it('returns undefined for unrecognized license content', async () => {
+    const ctx = createMockContext({
+      LICENSE: 'Custom proprietary license. All rights reserved.',
+      'package.json': JSON.stringify({name: 'test'}),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    expect(result.licenseFile).toBe('LICENSE');
+    expect(result.projectLicense).toBeUndefined();
+  });
+
+  it('detects LICENCE (British spelling) file', async () => {
+    const ctx = createMockContext({
+      LICENCE:
+        'MIT License\n\nPermission is hereby granted, free of charge...',
+      'package.json': JSON.stringify({name: 'test'}),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    expect(result.licenseFile).toBe('LICENCE');
+    expect(result.projectLicense).toBe('MIT');
+  });
+
+  it('classifies non-standard copyleft license via fuzzy matching', async () => {
+    const ctx = createMockContext({
+      'package.json': JSON.stringify({
+        name: 'test',
+        dependencies: {'copyleft-lib': '^1.0.0'},
+      }),
+      'node_modules/copyleft-lib/package.json': JSON.stringify({
+        name: 'copyleft-lib',
+        license: 'Custom-GPL-Variant',
+      }),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    const dep = result.dependencyLicenses.find(
+      d => d.package === 'copyleft-lib',
+    );
+    expect(dep?.risk).toBe('copyleft');
+  });
+
+  it('classifies non-standard restrictive license via fuzzy matching', async () => {
+    const ctx = createMockContext({
+      'package.json': JSON.stringify({
+        name: 'test',
+        dependencies: {'bsl-lib': '^1.0.0'},
+      }),
+      'node_modules/bsl-lib/package.json': JSON.stringify({
+        name: 'bsl-lib',
+        license: 'Business Source License (BSL)',
+      }),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    const dep = result.dependencyLicenses.find(d => d.package === 'bsl-lib');
+    expect(dep?.risk).toBe('restrictive');
+  });
+
+  it('classifies non-standard permissive license via fuzzy matching', async () => {
+    const ctx = createMockContext({
+      'package.json': JSON.stringify({
+        name: 'test',
+        dependencies: {'custom-mit': '^1.0.0'},
+      }),
+      'node_modules/custom-mit/package.json': JSON.stringify({
+        name: 'custom-mit',
+        license: 'MIT-like',
+      }),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    const dep = result.dependencyLicenses.find(
+      d => d.package === 'custom-mit',
+    );
+    expect(dep?.risk).toBe('none');
+  });
+
+  it('classifies Elastic license as restrictive via fuzzy matching', async () => {
+    const ctx = createMockContext({
+      'package.json': JSON.stringify({
+        name: 'test',
+        dependencies: {'elastic-lib': '^1.0.0'},
+      }),
+      'node_modules/elastic-lib/package.json': JSON.stringify({
+        name: 'elastic-lib',
+        license: 'Elastic License 2.0 (Custom)',
+      }),
+    });
+
+    const result = await licenseDetector.detect(ctx);
+    const dep = result.dependencyLicenses.find(
+      d => d.package === 'elastic-lib',
+    );
+    expect(dep?.risk).toBe('restrictive');
+  });
 });
