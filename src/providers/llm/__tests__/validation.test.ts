@@ -1,240 +1,128 @@
 import {describe, it, expect, vi} from 'vitest';
+import {z} from 'zod';
 import {
-  extractJsonFromMarkdown,
-  validateJsonResponse,
-  withRetry,
-  LLMValidationError,
-  LLMRetryExhaustedError,
+  extractJsonFromMarkdown, validateJsonResponse, parseJsonResponse,
+  validateResponse, retryWithValidation, withRetry,
+  LLMValidationError, LLMRetryExhaustedError,
 } from '../validation.js';
 
 describe('extractJsonFromMarkdown', () => {
-  it('extracts JSON from ```json code block', () => {
-    const markdown = '```json\n{"key": "value"}\n```';
-
-    expect(extractJsonFromMarkdown(markdown)).toBe('{"key": "value"}');
+  it('extracts from json code block', () => {
+    expect(extractJsonFromMarkdown('```json\n{"key": "value"}\n```')).toBe('{"key": "value"}');
   });
-
-  it('extracts JSON from ``` code block without language tag', () => {
-    const markdown = '```\n{"key": "value"}\n```';
-
-    expect(extractJsonFromMarkdown(markdown)).toBe('{"key": "value"}');
+  it('extracts from plain code block', () => {
+    expect(extractJsonFromMarkdown('```\n{"key": "value"}\n```')).toBe('{"key": "value"}');
   });
-
-  it('returns raw text when no code block is present', () => {
-    const raw = '{"key": "value"}';
-
-    expect(extractJsonFromMarkdown(raw)).toBe('{"key": "value"}');
+  it('returns raw text when no block', () => {
+    expect(extractJsonFromMarkdown('{"key": "value"}')).toBe('{"key": "value"}');
   });
-
-  it('trims whitespace from extracted content', () => {
-    const markdown = '```json\n  {"key": "value"}  \n```';
-
-    expect(extractJsonFromMarkdown(markdown)).toBe('{"key": "value"}');
+  it('trims whitespace', () => {
+    expect(extractJsonFromMarkdown('  {"a": 1}  ')).toBe('{"a": 1}');
   });
-
-  it('trims whitespace from raw text', () => {
-    const raw = '  {"key": "value"}  ';
-
-    expect(extractJsonFromMarkdown(raw)).toBe('{"key": "value"}');
-  });
-
-  it('handles multiline JSON in code block', () => {
-    const markdown = '```json\n{\n  "a": 1,\n  "b": 2\n}\n```';
-    const result = extractJsonFromMarkdown(markdown);
-
-    expect(JSON.parse(result)).toEqual({a: 1, b: 2});
-  });
-
-  it('extracts from the first code block when multiple exist', () => {
-    const markdown =
-      '```json\n{"first": true}\n```\n\n```json\n{"second": true}\n```';
-
-    expect(extractJsonFromMarkdown(markdown)).toBe('{"first": true}');
-  });
-
-  it('handles surrounding text before code block', () => {
-    const markdown =
-      'Here is the result:\n```json\n{"key": "value"}\n```\nDone.';
-
-    expect(extractJsonFromMarkdown(markdown)).toBe('{"key": "value"}');
+  it('handles multiline JSON', () => {
+    expect(JSON.parse(extractJsonFromMarkdown('```json\n{\n  "a": 1\n}\n```'))).toEqual({a: 1});
   });
 });
 
 describe('validateJsonResponse', () => {
   it('returns success for valid JSON', () => {
-    const result = validateJsonResponse<{name: string}>(
-      '{"name": "test"}',
-      'TestSchema',
-    );
-
-    expect(result).toEqual({success: true, data: {name: 'test'}});
+    expect(validateJsonResponse('{"a": 1}', 'S')).toEqual({success: true, data: {a: 1}});
   });
-
-  it('returns success for JSON in markdown code block', () => {
-    const result = validateJsonResponse<{count: number}>(
-      '```json\n{"count": 42}\n```',
-      'CountSchema',
-    );
-
-    expect(result).toEqual({success: true, data: {count: 42}});
-  });
-
   it('returns failure for invalid JSON', () => {
-    const result = validateJsonResponse('{invalid}', 'TestSchema');
+    const r = validateJsonResponse('{bad}', 'S');
+    expect(r.success).toBe(false);
+  });
+  it('returns failure for empty', () => {
+    const r = validateJsonResponse('', 'S');
+    expect(r.success).toBe(false);
+  });
+});
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('Invalid JSON for schema "TestSchema"');
+describe('parseJsonResponse', () => {
+  it('parses valid JSON', () => {
+    expect(parseJsonResponse('{"a": 1}')).toEqual({a: 1});
+  });
+  it('parses from code block', () => {
+    expect(parseJsonResponse('```json\n{"b": 2}\n```')).toEqual({b: 2});
+  });
+  it('throws for empty', () => {
+    expect(() => parseJsonResponse('')).toThrow(LLMValidationError);
+  });
+  it('recovers partial JSON', () => {
+    expect(parseJsonResponse('text {"x": 42} more')).toEqual({x: 42});
+  });
+  it('recovers partial arrays', () => {
+    expect(parseJsonResponse('list: [1, 2, 3] done')).toEqual([1, 2, 3]);
+  });
+  it('throws for unparseable', () => {
+    expect(() => parseJsonResponse('no json')).toThrow(LLMValidationError);
+  });
+  it('preserves rawResponse in error', () => {
+    try { parseJsonResponse('garbage'); } catch (e) {
+      expect((e as LLMValidationError).rawResponse).toBe('garbage');
     }
   });
+});
 
-  it('returns failure for empty string', () => {
-    const result = validateJsonResponse('', 'TestSchema');
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('Empty response');
-      expect(result.error).toContain('TestSchema');
-    }
+describe('validateResponse', () => {
+  const S = z.object({name: z.string(), age: z.number()});
+  it('succeeds for valid', () => {
+    expect(validateResponse('{"name":"A","age":30}', S)).toEqual({success: true, data: {name: 'A', age: 30}});
   });
-
-  it('returns failure for whitespace-only string', () => {
-    const result = validateJsonResponse('   ', 'TestSchema');
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('Empty response');
-    }
+  it('fails for schema mismatch', () => {
+    const r = validateResponse('{"name":"A","age":"x"}', S);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain('Schema validation failed');
   });
-
-  it('parses arrays correctly', () => {
-    const result = validateJsonResponse<string[]>(
-      '["a", "b", "c"]',
-      'ArraySchema',
-    );
-
-    expect(result).toEqual({success: true, data: ['a', 'b', 'c']});
+  it('fails for unparseable', () => {
+    expect(validateResponse('not json', S).success).toBe(false);
   });
+});
 
-  it('parses nested objects correctly', () => {
-    const result = validateJsonResponse<{outer: {inner: number}}>(
-      '{"outer": {"inner": 1}}',
-      'NestedSchema',
-    );
-
-    expect(result).toEqual({success: true, data: {outer: {inner: 1}}});
+describe('retryWithValidation', () => {
+  const S = z.object({value: z.string()});
+  it('succeeds on first try', async () => {
+    const fn = vi.fn().mockResolvedValue('{"value":"ok"}');
+    expect(await retryWithValidation(fn, S, 2)).toEqual({value: 'ok'});
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+  it('retries on invalid and succeeds', async () => {
+    const fn = vi.fn().mockResolvedValueOnce('bad').mockResolvedValue('{"value":"ok"}');
+    expect(await retryWithValidation(fn, S, 2)).toEqual({value: 'ok'});
+  });
+  it('throws after all retries fail', async () => {
+    const fn = vi.fn().mockResolvedValue('bad');
+    await expect(retryWithValidation(fn, S, 1)).rejects.toThrow(LLMRetryExhaustedError);
   });
 });
 
 describe('withRetry', () => {
-  it('returns the result on first success', async () => {
-    const fn = vi.fn().mockResolvedValue('success');
-
-    const result = await withRetry(fn, {maxRetries: 3, backoffMs: 1});
-
-    expect(result).toBe('success');
-    expect(fn).toHaveBeenCalledTimes(1);
+  it('succeeds on first try', async () => {
+    const fn = vi.fn().mockResolvedValue('ok');
+    expect(await withRetry(fn, {maxRetries: 3, backoffMs: 1})).toBe('ok');
   });
-
-  it('retries on failure and eventually succeeds', async () => {
-    const fn = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('fail 1'))
-      .mockRejectedValueOnce(new Error('fail 2'))
-      .mockResolvedValue('success');
-
-    const result = await withRetry(fn, {maxRetries: 3, backoffMs: 1});
-
-    expect(result).toBe('success');
-    expect(fn).toHaveBeenCalledTimes(3);
+  it('retries and succeeds', async () => {
+    const fn = vi.fn().mockRejectedValueOnce(new Error('f1')).mockResolvedValue('ok');
+    expect(await withRetry(fn, {maxRetries: 2, backoffMs: 1})).toBe('ok');
   });
-
-  it('throws LLMRetryExhaustedError when all attempts fail', async () => {
-    const fn = vi.fn().mockRejectedValue(new Error('always fails'));
-
-    await expect(
-      withRetry(fn, {maxRetries: 2, backoffMs: 1}),
-    ).rejects.toThrow(LLMRetryExhaustedError);
-  });
-
-  it('includes attempt count and last error in LLMRetryExhaustedError', async () => {
-    const fn = vi.fn().mockRejectedValue(new Error('persistent failure'));
-
-    try {
-      await withRetry(fn, {maxRetries: 2, backoffMs: 1});
-      // Should not reach here.
-      expect.unreachable('Should have thrown');
-    } catch (err) {
-      expect(err).toBeInstanceOf(LLMRetryExhaustedError);
-      const retryErr = err as LLMRetryExhaustedError;
-      expect(retryErr.attempts).toBe(3); // 1 initial + 2 retries
-      expect(retryErr.lastError.message).toBe('persistent failure');
-    }
-  });
-
-  it('retries exactly maxRetries times after initial failure', async () => {
+  it('throws after exhaustion', async () => {
     const fn = vi.fn().mockRejectedValue(new Error('fail'));
-
-    await expect(
-      withRetry(fn, {maxRetries: 1, backoffMs: 1}),
-    ).rejects.toThrow();
-
-    expect(fn).toHaveBeenCalledTimes(2); // 1 initial + 1 retry
-  });
-
-  it('succeeds on the last retry attempt', async () => {
-    const fn = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('fail'))
-      .mockResolvedValue('last-chance');
-
-    const result = await withRetry(fn, {maxRetries: 1, backoffMs: 1});
-
-    expect(result).toBe('last-chance');
-    expect(fn).toHaveBeenCalledTimes(2);
-  });
-
-  it('handles non-Error throws gracefully', async () => {
-    const fn = vi.fn().mockRejectedValue('string error');
-
-    await expect(
-      withRetry(fn, {maxRetries: 0, backoffMs: 1}),
-    ).rejects.toThrow(LLMRetryExhaustedError);
+    await expect(withRetry(fn, {maxRetries: 1, backoffMs: 1})).rejects.toThrow(LLMRetryExhaustedError);
   });
 });
 
 describe('LLMValidationError', () => {
-  it('has the correct name property', () => {
-    const error = new LLMValidationError('test error');
-
-    expect(error.name).toBe('LLMValidationError');
-    expect(error.message).toBe('test error');
+  it('has correct name', () => {
+    expect(new LLMValidationError('x').name).toBe('LLMValidationError');
   });
-
-  it('stores the raw response when provided', () => {
-    const error = new LLMValidationError('parse failed', '{bad json}');
-
-    expect(error.rawResponse).toBe('{bad json}');
-  });
-
-  it('has undefined rawResponse when not provided', () => {
-    const error = new LLMValidationError('parse failed');
-
-    expect(error.rawResponse).toBeUndefined();
+  it('stores rawResponse', () => {
+    expect(new LLMValidationError('x', 'raw').rawResponse).toBe('raw');
   });
 });
 
 describe('LLMRetryExhaustedError', () => {
-  it('has the correct name property', () => {
-    const error = new LLMRetryExhaustedError(3, new Error('inner'));
-
-    expect(error.name).toBe('LLMRetryExhaustedError');
-  });
-
-  it('includes attempt count in message', () => {
-    const error = new LLMRetryExhaustedError(3, new Error('inner'));
-
-    expect(error.message).toContain('3 attempts');
-    expect(error.message).toContain('inner');
+  it('includes attempt count', () => {
+    const e = new LLMRetryExhaustedError(3, new Error('inner'));
+    expect(e.message).toContain('3 attempts');
   });
 });

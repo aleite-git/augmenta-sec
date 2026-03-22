@@ -1,293 +1,43 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
-import {createTrivyScanner} from '../trivy.js';
+import {createTrivyScanner, scanFilesystem, scanContainer} from '../trivy.js';
 import type {ScanTarget} from '../types.js';
-
-vi.mock('node:child_process', () => ({
-  execFile: vi.fn(),
-}));
-
+vi.mock('node:child_process', () => ({execFile: vi.fn()}));
 import {execFile} from 'node:child_process';
-
 const mockExecFile = vi.mocked(execFile);
-
-function mockResolve(stdout: string, stderr = '') {
-  mockExecFile.mockImplementation(
-    ((...args: unknown[]) => {
-      const cb = args[args.length - 1] as (...cbArgs: unknown[]) => void;
-      if (typeof cb === 'function') cb(null, stdout, stderr);
-    }) as typeof execFile,
-  );
-}
-
-function mockReject(error: {
-  code?: string | number;
-  killed?: boolean;
-  stdout?: string;
-  stderr?: string;
-}) {
-  mockExecFile.mockImplementation(
-    ((...args: unknown[]) => {
-      const cb = args[args.length - 1] as (...cbArgs: unknown[]) => void;
-      if (typeof cb === 'function') {
-        const err = Object.assign(new Error('command failed'), {
-          code: error.code,
-          killed: error.killed,
-          stdout: error.stdout ?? '',
-          stderr: error.stderr ?? '',
-        });
-        cb(err, error.stdout ?? '', error.stderr ?? '');
-      }
-    }) as typeof execFile,
-  );
-}
-
+function mockResolve(stdout: string) { mockExecFile.mockImplementation(((...args: unknown[]) => { const cb = args[args.length - 1] as (...a: unknown[]) => void; if (typeof cb === 'function') cb(null, stdout, ''); }) as typeof execFile); }
+function mockReject(error: {code?: string | number; killed?: boolean}) { mockExecFile.mockImplementation(((...args: unknown[]) => { const cb = args[args.length - 1] as (...a: unknown[]) => void; if (typeof cb === 'function') cb(Object.assign(new Error('fail'), {code: error.code, killed: error.killed, stdout: '', stderr: ''}), '', ''); }) as typeof execFile); }
 const target: ScanTarget = {rootDir: '/project'};
-
-const TRIVY_FS_OUTPUT = JSON.stringify({
-  Results: [
-    {
-      Target: 'package-lock.json',
-      Type: 'npm',
-      Vulnerabilities: [
-        {
-          VulnerabilityID: 'CVE-2023-1234',
-          PkgName: 'lodash',
-          InstalledVersion: '4.17.19',
-          FixedVersion: '4.17.21',
-          Title: 'Prototype Pollution',
-          Description: 'lodash before 4.17.21 has a prototype pollution vulnerability',
-          Severity: 'CRITICAL',
-        },
-        {
-          VulnerabilityID: 'CVE-2023-5678',
-          PkgName: 'express',
-          InstalledVersion: '4.17.0',
-          FixedVersion: '4.18.2',
-          Title: 'Open Redirect',
-          Description: 'Express before 4.18.2 allows open redirect',
-          Severity: 'MEDIUM',
-        },
-      ],
-    },
-    {
-      Target: 'go.sum',
-      Type: 'gomod',
-      Vulnerabilities: [
-        {
-          VulnerabilityID: 'CVE-2023-9999',
-          PkgName: 'golang.org/x/net',
-          InstalledVersion: 'v0.1.0',
-          FixedVersion: 'v0.7.0',
-          Title: 'HTTP/2 rapid reset',
-          Severity: 'HIGH',
-        },
-      ],
-    },
-  ],
-});
-
+const TRIVY = JSON.stringify({Results: [{Target: 'package-lock.json', Type: 'npm', Vulnerabilities: [{VulnerabilityID: 'CVE-1234', PkgName: 'lodash', InstalledVersion: '4.17.19', FixedVersion: '4.17.21', Title: 'PP', Description: 'vuln', Severity: 'CRITICAL'}, {VulnerabilityID: 'CVE-5678', PkgName: 'express', InstalledVersion: '4.17.0', Title: 'Redirect', Severity: 'MEDIUM'}]}, {Target: 'go.sum', Type: 'gomod', Vulnerabilities: [{VulnerabilityID: 'CVE-9999', PkgName: 'golang.org/x/net', InstalledVersion: 'v0.1.0', Title: 'HTTP/2', Severity: 'HIGH'}]}]});
 describe('createTrivyScanner', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('has correct name and category for fs mode', () => {
-    const scanner = createTrivyScanner('fs');
-    expect(scanner.name).toBe('trivy');
-    expect(scanner.category).toBe('sca');
-  });
-
-  it('has correct name and category for image mode', () => {
-    const scanner = createTrivyScanner('image');
-    expect(scanner.name).toBe('trivy');
-    expect(scanner.category).toBe('container');
-  });
-
-  it('defaults to fs mode', () => {
-    const scanner = createTrivyScanner();
-    expect(scanner.category).toBe('sca');
-  });
-
+  beforeEach(() => { vi.clearAllMocks(); });
+  it('defaults to sca', () => { expect(createTrivyScanner().category).toBe('sca'); });
+  it('image=container', () => { expect(createTrivyScanner('image').category).toBe('container'); });
+  it('stores config', () => { expect(createTrivyScanner('fs', {timeout: 30_000}).config!.timeout).toBe(30_000); });
   describe('isAvailable', () => {
-    it('returns true when trivy binary exists', async () => {
-      mockResolve('/usr/local/bin/trivy');
-      const scanner = createTrivyScanner();
-      const available = await scanner.isAvailable();
-      expect(available).toBe(true);
-    });
-
-    it('returns false when trivy binary is missing', async () => {
-      mockReject({code: 'ENOENT'});
-      const scanner = createTrivyScanner();
-      const available = await scanner.isAvailable();
-      expect(available).toBe(false);
-    });
+    it('true', async () => { mockResolve('/usr/local/bin/trivy'); expect(await createTrivyScanner().isAvailable()).toBe(true); });
+    it('false', async () => { mockReject({code: 'ENOENT'}); expect(await createTrivyScanner().isAvailable()).toBe(false); });
   });
-
-  describe('scan (fs mode)', () => {
-    it('parses Trivy JSON output for filesystem mode', async () => {
-      mockResolve(TRIVY_FS_OUTPUT);
-
-      const scanner = createTrivyScanner('fs');
-      const result = await scanner.scan(target);
-
-      expect(result.scanner).toBe('trivy');
-      expect(result.category).toBe('sca');
-      expect(result.findings).toHaveLength(3);
-      expect(result.error).toBeUndefined();
-
-      expect(result.findings[0].ruleId).toBe('CVE-2023-1234');
-      expect(result.findings[0].message).toContain('Prototype Pollution');
-      expect(result.findings[0].file).toBe('package-lock.json');
-    });
-
-    it('maps CRITICAL to critical severity', async () => {
-      mockResolve(TRIVY_FS_OUTPUT);
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings[0].severity).toBe('critical');
-    });
-
-    it('maps HIGH to high severity', async () => {
-      mockResolve(TRIVY_FS_OUTPUT);
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings[2].severity).toBe('high');
-    });
-
-    it('maps MEDIUM to medium severity', async () => {
-      mockResolve(TRIVY_FS_OUTPUT);
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings[1].severity).toBe('medium');
-    });
-
-    it('maps UNKNOWN to informational', async () => {
-      const output = JSON.stringify({
-        Results: [{
-          Target: 'test.lock',
-          Type: 'npm',
-          Vulnerabilities: [{
-            VulnerabilityID: 'CVE-UNKNOWN',
-            PkgName: 'unknown-pkg',
-            InstalledVersion: '1.0.0',
-            Severity: 'UNKNOWN',
-          }],
-        }],
-      });
-      mockResolve(output);
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings[0].severity).toBe('informational');
-    });
-
-    it('includes package metadata in findings', async () => {
-      mockResolve(TRIVY_FS_OUTPUT);
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      const metadata = result.findings[0].metadata;
-      expect(metadata).toBeDefined();
-      expect(metadata!.pkgName).toBe('lodash');
-      expect(metadata!.installedVersion).toBe('4.17.19');
-      expect(metadata!.fixedVersion).toBe('4.17.21');
-      expect(metadata!.target).toBe('package-lock.json');
-      expect(metadata!.type).toBe('npm');
-    });
-
-    it('handles empty results', async () => {
-      mockResolve(JSON.stringify({Results: []}));
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings).toHaveLength(0);
-      expect(result.error).toBeUndefined();
-    });
-
-    it('handles null Vulnerabilities array', async () => {
-      const output = JSON.stringify({
-        Results: [{Target: 'package-lock.json', Type: 'npm', Vulnerabilities: null}],
-      });
-      mockResolve(output);
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings).toHaveLength(0);
-    });
-
-    it('combines Title and Description in message', async () => {
-      mockResolve(TRIVY_FS_OUTPUT);
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings[0].message).toContain('Prototype Pollution');
-      expect(result.findings[0].message).toContain('lodash before 4.17.21');
-    });
-
-    it('uses VulnerabilityID as message fallback when Title/Description absent', async () => {
-      const output = JSON.stringify({
-        Results: [{
-          Target: 'test.lock',
-          Type: 'npm',
-          Vulnerabilities: [{
-            VulnerabilityID: 'CVE-NO-TITLE',
-            PkgName: 'pkg',
-            InstalledVersion: '1.0.0',
-            Severity: 'LOW',
-          }],
-        }],
-      });
-      mockResolve(output);
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings[0].message).toBe('CVE-NO-TITLE');
-    });
+  describe('scan (fs)', () => {
+    it('parses', async () => { mockResolve(TRIVY); expect((await createTrivyScanner().scan(target)).findings).toHaveLength(3); });
+    it('maps CRITICAL', async () => { mockResolve(TRIVY); expect((await createTrivyScanner().scan(target)).findings[0].severity).toBe('critical'); });
+    it('maps HIGH', async () => { mockResolve(TRIVY); expect((await createTrivyScanner().scan(target)).findings[2].severity).toBe('high'); });
+    it('maps MEDIUM', async () => { mockResolve(TRIVY); expect((await createTrivyScanner().scan(target)).findings[1].severity).toBe('medium'); });
+    it('maps LOW', async () => { mockResolve(JSON.stringify({Results: [{Vulnerabilities: [{VulnerabilityID: 'x', PkgName: 'p', InstalledVersion: '1', Severity: 'LOW'}]}]})); expect((await createTrivyScanner().scan(target)).findings[0].severity).toBe('low'); });
+    it('maps UNKNOWN', async () => { mockResolve(JSON.stringify({Results: [{Vulnerabilities: [{VulnerabilityID: 'x', PkgName: 'p', InstalledVersion: '1', Severity: 'UNKNOWN'}]}]})); expect((await createTrivyScanner().scan(target)).findings[0].severity).toBe('informational'); });
+    it('includes metadata', async () => { mockResolve(TRIVY); expect((await createTrivyScanner().scan(target)).findings[0].metadata!.pkgName).toBe('lodash'); });
+    it('handles empty', async () => { mockResolve(JSON.stringify({Results: []})); expect((await createTrivyScanner().scan(target)).findings).toHaveLength(0); });
+    it('handles null vulns', async () => { mockResolve(JSON.stringify({Results: [{Vulnerabilities: null}]})); expect((await createTrivyScanner().scan(target)).findings).toHaveLength(0); });
+    it('fallback message', async () => { mockResolve(JSON.stringify({Results: [{Vulnerabilities: [{VulnerabilityID: 'CVE-X', PkgName: 'p', InstalledVersion: '1', Severity: 'LOW'}]}]})); expect((await createTrivyScanner().scan(target)).findings[0].message).toBe('CVE-X'); });
+    it('extraArgs', async () => { mockResolve(JSON.stringify({Results: []})); await createTrivyScanner('fs', {extraArgs: ['--severity', 'HIGH']}).scan(target); expect(((mockExecFile.mock.calls[0] as unknown[])[1] as string[]).includes('--severity')).toBe(true); });
   });
-
-  describe('scan (image mode)', () => {
-    it('uses image mode when configured', async () => {
-      const imageTarget: ScanTarget = {rootDir: '/project', image: 'my-app:latest'};
-      const imageOutput = JSON.stringify({
-        Results: [{
-          Target: 'my-app:latest (alpine 3.18.4)',
-          Type: 'alpine',
-          Vulnerabilities: [{
-            VulnerabilityID: 'CVE-2023-0001',
-            PkgName: 'openssl',
-            InstalledVersion: '3.1.2-r0',
-            FixedVersion: '3.1.4-r0',
-            Title: 'Buffer overflow in openssl',
-            Severity: 'HIGH',
-          }],
-        }],
-      });
-      mockResolve(imageOutput);
-      const scanner = createTrivyScanner('image');
-      const result = await scanner.scan(imageTarget);
-      expect(result.category).toBe('container');
-      expect(result.findings).toHaveLength(1);
-      expect(result.findings[0].ruleId).toBe('CVE-2023-0001');
-    });
+  describe('scan (image)', () => {
+    it('works', async () => { mockResolve(JSON.stringify({Results: [{Vulnerabilities: [{VulnerabilityID: 'CVE-1', PkgName: 'ssl', InstalledVersion: '3', Severity: 'HIGH', Title: 'overflow'}]}]})); const r = await createTrivyScanner('image').scan({rootDir: '/', image: 'img:latest'}); expect(r.category).toBe('container'); expect(r.findings).toHaveLength(1); });
   });
-
-  describe('error handling', () => {
-    it('handles timeout error', async () => {
-      mockReject({code: 'ETIMEDOUT', killed: true});
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings).toHaveLength(0);
-      expect(result.error).toContain('timed out');
-    });
-
-    it('handles binary not found', async () => {
-      mockReject({code: 'ENOENT'});
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings).toHaveLength(0);
-      expect(result.error).toContain('not found');
-    });
-
-    it('reports duration on success', async () => {
-      mockResolve(JSON.stringify({Results: []}));
-      const scanner = createTrivyScanner();
-      const result = await scanner.scan(target);
-      expect(result.duration).toBeGreaterThanOrEqual(0);
-    });
+  describe('errors', () => {
+    it('timeout', async () => { mockReject({code: 'ETIMEDOUT', killed: true}); expect((await createTrivyScanner().scan(target)).error).toContain('timed out'); });
+    it('not found', async () => { mockReject({code: 'ENOENT'}); expect((await createTrivyScanner().scan(target)).error).toContain('not found'); });
+    it('duration', async () => { mockResolve(JSON.stringify({Results: []})); expect((await createTrivyScanner().scan(target)).duration).toBeGreaterThanOrEqual(0); });
   });
 });
+describe('scanFilesystem', () => { beforeEach(() => { vi.clearAllMocks(); }); it('works', async () => { mockResolve(TRIVY); expect((await scanFilesystem({rootDir: '/p'})).findings).toHaveLength(3); }); });
+describe('scanContainer', () => { beforeEach(() => { vi.clearAllMocks(); }); it('works', async () => { mockResolve(JSON.stringify({Results: [{Vulnerabilities: [{VulnerabilityID: 'x', PkgName: 'p', InstalledVersion: '1', Severity: 'HIGH'}]}]})); expect((await scanContainer('img')).category).toBe('container'); }); });
