@@ -1,150 +1,63 @@
 # Getting Started
 
-This guide walks you through installing AugmentaSec, profiling your first codebase, and running a security scan.
+This guide walks you through installing AugmentaSec, profiling your first codebase, running a security scan, reviewing a pull request, and generating a report.
 
 ## Prerequisites
 
 - **Node.js 18+** -- required
 - **Semgrep** -- optional, for SAST scanning (`pip install semgrep` or `brew install semgrep`)
-- **Trivy** -- optional, for dependency and container scanning (`brew install trivy` or see [trivy docs](https://aquasecurity.github.io/trivy/))
+- **Trivy** -- optional, for dependency and container scanning (`brew install trivy`)
 - **LLM API key** -- optional, for LLM-powered analysis (Gemini, Mistral, OpenAI, or Anthropic)
 
 ## Installation
 
-Install AugmentaSec globally via npm:
+### From npm (recommended)
 
 ```bash
 npm install -g augmenta-sec
+asec --version
 ```
 
 This makes two commands available: `augmenta-sec` and the shorter alias `asec`.
 
-Verify the installation:
+### From Source
 
 ```bash
-asec --version
+git clone https://github.com/augmenta-sec/augmenta-sec.git
+cd augmenta-sec
+npm install
+npm run build
+npm link    # optional: link the built CLI globally
 ```
+
+Run in development mode without building: `npm run dev -- init /path/to/repo`
 
 ## First Run: Profiling a Codebase
 
-Run the discovery engine against any repository:
-
 ```bash
 asec init /path/to/your/repo
-```
-
-Or, from inside the repo:
-
-```bash
-cd /path/to/your/repo
+# or from inside the repo:
 asec init
 ```
 
-The discovery engine runs 8 detectors in parallel and produces a summary of:
-
-- Languages and frameworks detected
-- Authentication providers and patterns
-- Database types, drivers, and ORMs
-- API surface (REST, GraphQL, tRPC endpoints)
-- Security controls present and missing
-- CI/CD platform and security checks
-- Documentation coverage
+The discovery engine runs 18 detectors in parallel covering: languages, frameworks, authentication, databases, API surface, security controls, CI/CD, documentation, monorepo structure, Git hosting, Docker configuration, infrastructure as code, secrets, licenses, and ecosystem-specific details (Python, Go, Rust, JVM).
 
 All results are written to `.augmenta-sec/profile.yaml` in the target repository.
 
 ## Understanding the Profile
 
-After `asec init`, open `.augmenta-sec/profile.yaml` to review the generated profile. Here is what each section contains:
+After `asec init`, open `.augmenta-sec/profile.yaml` to review the generated profile. It contains sections for each detector: languages, frameworks, auth providers/patterns, databases, API endpoints, security controls (present and missing), CI workflows, documentation coverage, Docker analysis, and more.
 
-```yaml
-version: "1.0"
-generatedAt: "2026-03-21T10:30:00.000Z"
-target: /path/to/your/repo
-
-project:
-  name: your-repo
-
-languages:
-  primary: typescript
-  all:
-    - name: typescript
-      percentage: 72
-      fileCount: 145
-    - name: javascript
-      percentage: 28
-      fileCount: 56
-
-frameworks:
-  backend:
-    - name: express
-      category: backend
-      version: "4.21.0"
-      confidence: 1
-  # ... frontend, fullstack, orm, testing sections
-
-auth:
-  providers:
-    - name: jwt
-      type: first-party
-      confidence: 1
-      source: "dependency: jsonwebtoken (package.json)"
-  patterns:
-    - type: middleware
-      files: ["src/middleware/auth.ts"]
-
-database:
-  databases:
-    - type: postgresql
-      driver: pg
-      orm: drizzle
-      migrationsDir: drizzle
-      schemaDir: src/db/schema
-      confidence: 1
-
-api:
-  styles: [rest]
-  specFile: api/openapi.yaml
-  routeCount: 47
-
-securityControls:
-  present:
-    - name: HTTP Security Headers
-      type: http-headers
-      present: true
-      confidence: 1
-      source: "dependency: helmet"
-  missing:
-    - name: Rate Limiting
-      type: rate-limiting
-      present: false
-      confidence: 0.8
-      source: not detected in dependencies or code
-
-ci:
-  platform: github-actions
-  workflows: [...]
-  securityChecks: [...]
-
-docs:
-  hasReadme: true
-  hasSecurityPolicy: true
-  # ...
-```
-
-Review the profile for accuracy. The detectors use heuristics and may miss or misidentify components. Edit the YAML directly to correct any inaccuracies -- this is your security baseline.
-
-If the API surface has endpoints, they are written separately to `.augmenta-sec/endpoints.yaml` to keep the profile readable.
+Review the profile for accuracy. The detectors use heuristics and may miss or misidentify components. Edit the YAML directly to correct inaccuracies -- this is your security baseline.
 
 ## Configuration
 
-Copy the example configuration into your project:
-
 ```bash
 mkdir -p .augmenta-sec
-cp /path/to/augmenta-sec/config.example.yaml .augmenta-sec/config.yaml
+cp config.example.yaml .augmenta-sec/config.yaml
 ```
 
-Or, if you installed globally, you can find the example at the package location. The minimum configuration you need is the LLM section:
+Minimum configuration needed is the LLM section:
 
 ```yaml
 llm:
@@ -153,23 +66,15 @@ llm:
   reasoning: gemini/gemini-2.5-pro
 ```
 
-Set the corresponding API key as an environment variable:
+Set the API key: `export GEMINI_API_KEY=your-key-here`
 
-```bash
-export GEMINI_API_KEY=your-api-key-here
-```
+### Global Configuration
 
-See [configuration.md](configuration.md) for a full reference of every option.
+Set defaults for all projects in `~/.augmenta-sec/config.yaml`. Priority: **project > global > built-in defaults**.
 
-## Global Configuration
-
-You can also set defaults that apply to all projects in `~/.augmenta-sec/config.yaml`. Project-level configuration (in `.augmenta-sec/config.yaml`) overrides global settings.
-
-This is useful for setting your preferred LLM models and API keys once, rather than per-project.
+See [configuration.md](configuration.md) for a full reference.
 
 ## Running a Scan
-
-Once you have a profile and configuration in place:
 
 ```bash
 asec scan
@@ -178,31 +83,46 @@ asec scan
 The scan engine will:
 
 1. Load your security profile from `.augmenta-sec/profile.yaml`
-2. Run configured external scanners (Semgrep, Trivy, etc.)
-3. Apply LLM-powered contextual analysis to raw findings
-4. Produce a unified findings report with contextual severity
+2. Run configured external scanners (Semgrep, Trivy, etc.) in parallel
+3. Normalize raw findings into a canonical format
+4. Deduplicate findings across scanners (exact and fuzzy matching)
+5. Apply contextual severity scoring using the security profile
+6. Filter by minimum severity threshold
+7. Produce a unified findings report
 
-Scanners that are not installed are skipped gracefully with a notice.
+Scanners that are not installed are skipped gracefully.
+
+### Contextual Severity
+
+Unlike raw scanner output, AugmentaSec adjusts severity based on project context:
+
+- Findings in **auth code** are elevated
+- Findings in **API routes** are elevated (public-facing)
+- Findings in **test code** are demoted
+- Findings in **third-party code** (node_modules, vendor) are demoted
+- Projects that **handle PII** get elevated severity for relevant categories
 
 ## Reviewing a Pull Request
-
-To review a PR for security issues:
 
 ```bash
 asec review 42
 ```
 
-Where `42` is the PR number. AugmentaSec will:
+Accepts PR number, `#42`, or a full URL (`https://github.com/owner/repo/pull/42`).
 
-1. Fetch the PR diff from your Git platform
-2. Analyze changed files against the security profile
-3. Post inline comments on security-relevant lines
-4. Post a summary comment with the overall assessment
+AugmentaSec will: fetch the PR diff, analyze via LLM, filter by config, determine auto-approval, and optionally post inline comments and a summary.
+
+## Trend Analysis
+
+```bash
+asec trends
+```
+
+Displays historical scan data: finding counts by severity, category breakdowns, and regression detection.
 
 ## Next Steps
 
-- Review and commit `.augmenta-sec/` to version control so the security profile is shared with your team
-- Customize `autonomy` settings to control what actions AugmentaSec can take automatically
-- Add `asec scan` to your CI pipeline for continuous security analysis
-- Read the [Detectors documentation](detectors.md) to understand what each detector looks for
-- Read the [Provider Implementation Guide](providers.md) if you want to add support for a new LLM, Git platform, or scanner
+- Commit `.augmenta-sec/` to version control
+- Customize `autonomy` settings to control automated actions
+- Add `asec scan` to your CI pipeline
+- Read [Configuration Reference](configuration.md), [Detectors](detectors.md), [Providers](providers.md)
