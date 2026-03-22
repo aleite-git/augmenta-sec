@@ -56,11 +56,14 @@ We follow a coordinated disclosure process:
 The following are in scope:
 
 - The AugmentaSec CLI tool and its dependencies
-- The discovery engine and all detectors
+- The discovery engine and all 18 detectors
 - LLM provider integrations (credential handling, prompt injection risks)
 - Git platform integrations (token handling, API interactions)
 - Scanner orchestration (command injection, output parsing)
 - Configuration loading and validation
+- The server mode HTTP API (authentication, rate limiting, input validation)
+- Webhook processing (payload validation, replay attacks)
+- Report generation (XSS in HTML reports, path traversal)
 
 The following are out of scope:
 
