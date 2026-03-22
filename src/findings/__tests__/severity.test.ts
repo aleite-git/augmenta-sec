@@ -4,6 +4,7 @@ import {
   severityToNumber,
   numberToSeverity,
   isAtLeast,
+  scoreSeverity,
 } from '../severity.js';
 import type {SeverityContext} from '../severity.js';
 
@@ -148,5 +149,40 @@ describe('adjustSeverity', () => {
     const ctx = baseContext();
     expect(adjustSeverity('high', ctx)).toBe('high');
     expect(adjustSeverity('low', ctx)).toBe('low');
+  });
+});
+
+describe('scoreSeverity', () => {
+  it('returns base score for neutral context', () => {
+    const ctx = baseContext();
+    const score = scoreSeverity('high', ctx);
+    expect(score.value).toBe(70);
+    expect(score.level).toBe('high');
+    expect(score.reasoning).toHaveLength(1);
+  });
+  it('returns base scores', () => {
+    const ctx = baseContext();
+    expect(scoreSeverity('critical', ctx).value).toBe(90);
+    expect(scoreSeverity('medium', ctx).value).toBe(50);
+    expect(scoreSeverity('low', ctx).value).toBe(30);
+    expect(scoreSeverity('informational', ctx).value).toBe(10);
+  });
+  it('increases for API route', () => { expect(scoreSeverity('medium', baseContext({isInApiRoute: true})).value).toBe(60); });
+  it('increases for PII', () => { expect(scoreSeverity('medium', baseContext({handlesPII: true})).value).toBe(60); });
+  it('increases for auth code', () => { expect(scoreSeverity('medium', baseContext({isInAuthCode: true})).value).toBe(55); });
+  it('increases for trust boundaries', () => { expect(scoreSeverity('medium', baseContext({trustBoundaryCount: 3})).value).toBe(55); });
+  it('no increase for low trust boundaries', () => { expect(scoreSeverity('medium', baseContext({trustBoundaryCount: 1})).value).toBe(50); });
+  it('decreases for test code', () => { expect(scoreSeverity('medium', baseContext({isInTestCode: true})).value).toBe(35); });
+  it('decreases for third-party', () => { expect(scoreSeverity('medium', baseContext({isInThirdParty: true})).value).toBe(40); });
+  it('stacks adjustments', () => { expect(scoreSeverity('high', baseContext({isInApiRoute: true, handlesPII: true, isInAuthCode: true, trustBoundaryCount: 2})).value).toBe(100); });
+  it('clamps at 0', () => { expect(scoreSeverity('informational', baseContext({isInTestCode: true, isInThirdParty: true})).value).toBe(0); });
+  it('clamps at 100', () => { expect(scoreSeverity('critical', baseContext({isInApiRoute: true, handlesPII: true, isInAuthCode: true, trustBoundaryCount: 5})).value).toBe(100); });
+  it('maps thresholds to levels', () => {
+    const ctx = baseContext();
+    expect(scoreSeverity('critical', ctx).level).toBe('critical');
+    expect(scoreSeverity('high', ctx).level).toBe('high');
+    expect(scoreSeverity('medium', ctx).level).toBe('medium');
+    expect(scoreSeverity('low', ctx).level).toBe('low');
+    expect(scoreSeverity('informational', ctx).level).toBe('informational');
   });
 });

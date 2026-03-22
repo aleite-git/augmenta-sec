@@ -200,3 +200,25 @@ export function createPromptLibrary(): PromptLibrary {
     },
   };
 }
+
+
+/**
+ * Retrieves a prompt by name from the built-in library.
+ */
+export function getPrompt(name: string, _version?: string): Prompt | undefined {
+  return createPromptLibrary().get(name);
+}
+
+/**
+ * Fills template variables in a prompt template string.
+ */
+export function formatPrompt(
+  template: string,
+  variables: Record<string, string>,
+): string {
+  let rendered = template;
+  for (const [key, value] of Object.entries(variables)) {
+    rendered = rendered.replaceAll(`{{${key}}}`, value);
+  }
+  return rendered;
+}

@@ -1,6 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import {
   deduplicateFindings,
+  deduplicateWithCounts,
   levenshteinDistance,
   stringSimilarity,
 } from '../dedup.js';
@@ -458,5 +459,54 @@ describe('deduplicateFindings — transitive grouping', () => {
     expect(result.duplicates[0].canonical).toBe(f1); // highest confidence
     expect(result.duplicates[0].duplicates).toHaveLength(2);
     expect(result.stats.suppressedCount).toBe(2);
+  });
+});
+
+describe('deduplicateWithCounts', () => {
+  it('returns empty array for empty input', () => { expect(deduplicateWithCounts([])).toEqual([]); });
+  it('returns duplicateCount=1 for single finding', () => {
+    const f = makeFinding({title: 'Unique', file: 'a.ts', line: 1});
+    const r = deduplicateWithCounts([f], 'exact');
+    expect(r).toHaveLength(1);
+    expect(r[0].duplicateCount).toBe(1);
+  });
+  it('sets duplicateCount to group size', () => {
+    const findings = [
+      makeFinding({title: 'SQL injection', file: 'a.ts', line: 10, confidence: 0.9, scanner: 'semgrep'}),
+      makeFinding({title: 'SQL injection', file: 'a.ts', line: 10, confidence: 0.7, scanner: 'trivy'}),
+      makeFinding({title: 'SQL injection', file: 'a.ts', line: 10, confidence: 0.5, scanner: 'eslint'}),
+    ];
+    const r = deduplicateWithCounts(findings, 'exact');
+    expect(r).toHaveLength(1);
+    expect(r[0].duplicateCount).toBe(3);
+  });
+  it('merges scanner sources', () => {
+    const findings = [
+      makeFinding({title: 'SQL injection', file: 'a.ts', line: 10, confidence: 0.9, scanner: 'semgrep'}),
+      makeFinding({title: 'SQL injection', file: 'a.ts', line: 10, confidence: 0.7, scanner: 'trivy'}),
+    ];
+    const r = deduplicateWithCounts(findings, 'exact');
+    expect(r[0].mergedSources).toContain('semgrep');
+    expect(r[0].mergedSources).toContain('trivy');
+  });
+  it('sorts by severity descending', () => {
+    const findings = [
+      makeFinding({title: 'Low', severity: 'low', file: 'a.ts', line: 1}),
+      makeFinding({title: 'Critical', severity: 'critical', file: 'b.ts', line: 2}),
+    ];
+    const r = deduplicateWithCounts(findings, 'exact');
+    expect(r[0].severity).toBe('critical');
+    expect(r[1].severity).toBe('low');
+  });
+  it('defaults to fuzzy strategy', () => {
+    const findings = [
+      makeFinding({title: 'SQL injection in query builder', file: 'a.ts', line: 10, confidence: 0.9}),
+      makeFinding({title: 'SQL injection in query builders', file: 'b.ts', line: 20, confidence: 0.7}),
+    ];
+    expect(deduplicateWithCounts(findings)).toHaveLength(1);
+  });
+  it('uses source field when scanner undefined', () => {
+    const r = deduplicateWithCounts([makeFinding({title: 'F', file: 'a.ts', line: 1, scanner: undefined, source: 'llm'})], 'exact');
+    expect(r[0].mergedSources).toContain('llm');
   });
 });

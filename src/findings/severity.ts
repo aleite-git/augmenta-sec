@@ -118,3 +118,25 @@ export function adjustSeverity(
 
   return numberToSeverity(adjusted);
 }
+
+// ASEC-017
+export interface SeverityScore {
+  value: number;
+  level: Severity;
+  reasoning: string[];
+}
+const BASE_SCORES: Record<Severity, number> = {critical: 90, high: 70, medium: 50, low: 30, informational: 10};
+const SCORE_THRESHOLDS: {min: number; level: Severity}[] = [{min: 80, level: 'critical'}, {min: 60, level: 'high'}, {min: 40, level: 'medium'}, {min: 20, level: 'low'}, {min: 0, level: 'informational'}];
+export function scoreSeverity(baseSeverity: Severity, context: SeverityContext): SeverityScore {
+  let score = BASE_SCORES[baseSeverity];
+  const reasoning: string[] = [`Base severity: ${baseSeverity} (${score})`];
+  if (context.isInApiRoute) { score += 10; reasoning.push('Public API route: +10'); }
+  if (context.handlesPII) { score += 10; reasoning.push('Handles PII data: +10'); }
+  if (context.isInAuthCode) { score += 5; reasoning.push('Auth-related code: +5'); }
+  if (context.trustBoundaryCount >= 2) { score += 5; reasoning.push(`Trust boundaries (${context.trustBoundaryCount}): +5`); }
+  if (context.isInTestCode) { score -= 15; reasoning.push('Test code: -15'); }
+  if (context.isInThirdParty) { score -= 10; reasoning.push('Third-party code: -10'); }
+  score = Math.max(0, Math.min(100, score));
+  const level = SCORE_THRESHOLDS.find((t) => score >= t.min)?.level ?? 'informational';
+  return {value: score, level, reasoning};
+}

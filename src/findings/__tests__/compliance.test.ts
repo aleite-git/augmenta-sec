@@ -2,6 +2,10 @@ import {describe, it, expect} from 'vitest';
 import {
   mapFindingToCompliance,
   generateComplianceReport,
+  mapToOWASP,
+  mapToCWE,
+  mapToSANS25,
+  complianceReport,
 } from '../compliance.js';
 import type {ComplianceFramework} from '../compliance.js';
 import type {Finding} from '../types.js';
@@ -361,4 +365,23 @@ describe('generateComplianceReport', () => {
       expect(allKeys).toContain(id);
     }
   });
+});
+
+describe("mapToOWASP", () => {
+  it("maps CWE-89", () => { expect(mapToOWASP(makeFinding({cweId: "CWE-89", title: "SQLi", category: "db"})).some((x) => x.id === "A03")).toBe(true); });
+  it("maps keyword", () => { expect(mapToOWASP(makeFinding({title: "Command injection", category: "injection"})).some((x) => x.id === "A03")).toBe(true); });
+});
+describe("mapToCWE", () => {
+  it("maps CWE-79", () => { expect(mapToCWE(makeFinding({cweId: "CWE-79", title: "XSS", category: "xss"})).some((x) => x.id === "CWE-79")).toBe(true); });
+  it("maps keyword", () => { expect(mapToCWE(makeFinding({title: "SQL injection", category: "injection"})).some((x) => x.id === "CWE-89")).toBe(true); });
+});
+describe("mapToSANS25", () => {
+  it("maps CWE-918", () => { expect(mapToSANS25(makeFinding({cweId: "CWE-918", title: "SSRF", category: "ssrf"})).some((x) => x.id === "CWE-918")).toBe(true); });
+  it("maps deserialization", () => { expect(mapToSANS25(makeFinding({title: "Insecure deserialization", category: "deserialization"})).some((x) => x.id === "CWE-502")).toBe(true); });
+});
+describe("complianceReport", () => {
+  it("returns all frameworks", () => { expect(complianceReport([makeFinding({cweId: "CWE-89", title: "SQLi"})]).reports).toHaveLength(3); });
+  it("includes totalFindings", () => { expect(complianceReport([makeFinding({cweId: "CWE-89"}), makeFinding({cweId: "CWE-79"})]).totalFindings).toBe(2); });
+  it("returns 0 coverage for empty", () => { expect(complianceReport([]).coveragePercent).toBe(0); });
+  it("totalCovered > 0", () => { expect(complianceReport([makeFinding({cweId: "CWE-89", title: "SQLi"})]).totalCovered).toBeGreaterThan(0); });
 });

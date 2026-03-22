@@ -1,63 +1,10 @@
-/**
- * Findings module — canonical schema, factory helpers, severity scoring,
- * deduplication, and compliance mapping.
- *
- * @example
- * ```ts
- * import {createFinding, adjustSeverity, summarizeFindings} from './findings/index.js';
- *
- * const finding = createFinding({
- *   source: 'scanner',
- *   scanner: 'semgrep',
- *   category: 'injection',
- *   severity: 'high',
- *   rawSeverity: 'high',
- *   title: 'SQL injection in query builder',
- *   description: 'User input flows into raw SQL query.',
- *   confidence: 0.9,
- * });
- * ```
- */
-
-export type {
-  Severity,
-  FindingSource,
-  FindingStatus,
-  Finding,
-  FindingsReport,
-  FindingsSummary,
-} from './types.js';
-
+export type {Severity, FindingSource, FindingStatus, Finding, FindingsReport, FindingsSummary} from './types.js';
 export {createFinding, summarizeFindings} from './types.js';
-
-export type {SeverityContext} from './severity.js';
-
-export {
-  adjustSeverity,
-  severityToNumber,
-  numberToSeverity,
-  isAtLeast,
-} from './severity.js';
-
-export type {
-  DeduplicationStrategy,
-  DuplicateGroup,
-  DeduplicatedResult,
-} from './dedup.js';
-
-export {
-  deduplicateFindings,
-  levenshteinDistance,
-  stringSimilarity,
-} from './dedup.js';
-
-export type {
-  ComplianceFramework,
-  ComplianceMapping,
-  ComplianceReport,
-} from './compliance.js';
-
-export {
-  mapFindingToCompliance,
-  generateComplianceReport,
-} from './compliance.js';
+export type {NormalizedFinding, NormalizedFindingsReport, SeverityCounts, ScanMetadata, RawFinding, ValidationError, ValidationResult} from './schema.js';
+export {normalizeFinding, normalizeSeverity, normalizeConfidence, validateFinding, buildFindingsReport} from './schema.js';
+export type {SeverityContext, SeverityScore} from './severity.js';
+export {adjustSeverity, severityToNumber, numberToSeverity, isAtLeast, scoreSeverity} from './severity.js';
+export type {DeduplicationStrategy, DuplicateGroup, DeduplicatedResult, DeduplicatedFinding} from './dedup.js';
+export {deduplicateFindings, deduplicateWithCounts, levenshteinDistance, stringSimilarity} from './dedup.js';
+export type {ComplianceFramework, ComplianceMapping, ComplianceReport, ComplianceSummary} from './compliance.js';
+export {mapFindingToCompliance, generateComplianceReport, mapToOWASP, mapToCWE, mapToSANS25, complianceReport} from './compliance.js';
