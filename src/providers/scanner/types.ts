@@ -54,3 +54,19 @@ export interface SecurityScanner {
   /** Run the scan and return raw findings. */
   scan(target: ScanTarget): Promise<ScanResult>;
 }
+
+/**
+ * Scanner adapter configuration options.
+ */
+export interface ScannerAdapterConfig {
+  rules?: string[];
+  timeout?: number;
+  extraArgs?: string[];
+}
+
+/**
+ * Extended scanner interface with configuration support.
+ */
+export interface ScannerAdapter extends SecurityScanner {
+  config?: ScannerAdapterConfig;
+}
