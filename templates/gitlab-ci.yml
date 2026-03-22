@@ -1,0 +1,84 @@
+# AugmentaSec GitLab CI Template (ASEC-048)
+#
+# Include this in your .gitlab-ci.yml to add AI-powered security reviews
+# to merge requests.
+#
+# Usage:
+#   include:
+#     - remote: 'https://raw.githubusercontent.com/augmenta-sec/augmenta-sec/main/templates/gitlab-ci.yml'
+#
+#   security-review:
+#     extends: .security-review
+#     variables:
+#       ASEC_SEVERITY_THRESHOLD: "medium"
+#       ASEC_LLM_PROVIDER: "gemini/gemini-2.5-flash"
+#       # Set ASEC_LLM_API_KEY in GitLab CI/CD variables (masked)
+#
+# Required CI/CD Variables:
+#   - ASEC_LLM_API_KEY: API key for the configured LLM provider
+#
+# Optional CI/CD Variables:
+#   - ASEC_SEVERITY_THRESHOLD: Minimum severity to report (default: "low")
+#   - ASEC_LLM_PROVIDER: LLM provider/model (default: "gemini/gemini-2.5-flash")
+#   - ASEC_CONFIG_PATH: Path to asec config file
+#   - GITLAB_TOKEN: Token for posting MR notes (defaults to CI_JOB_TOKEN)
+
+.security-review:
+  stage: test
+  image: node:20-alpine
+  variables:
+    ASEC_SEVERITY_THRESHOLD: "low"
+    ASEC_LLM_PROVIDER: "gemini/gemini-2.5-flash"
+    ASEC_CONFIG_PATH: ""
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - npm install -g augmenta-sec
+    # Determine the API key env var from the provider prefix
+    - |
+      PROVIDER_PREFIX=$(echo "$ASEC_LLM_PROVIDER" | cut -d'/' -f1)
+      case "$PROVIDER_PREFIX" in
+        gemini)    export GEMINI_API_KEY="$ASEC_LLM_API_KEY" ;;
+        anthropic) export ANTHROPIC_API_KEY="$ASEC_LLM_API_KEY" ;;
+        openai)    export OPENAI_API_KEY="$ASEC_LLM_API_KEY" ;;
+        mistral)   export MISTRAL_API_KEY="$ASEC_LLM_API_KEY" ;;
+      esac
+  script:
+    # Fetch the MR diff
+    - |
+      MR_IID="$CI_MERGE_REQUEST_IID"
+      PROJECT_ID="$CI_PROJECT_ID"
+      API_URL="${CI_API_V4_URL}/projects/${PROJECT_ID}/merge_requests/${MR_IID}/changes"
+      TOKEN="${GITLAB_TOKEN:-$CI_JOB_TOKEN}"
+
+      echo "Reviewing MR !${MR_IID}..."
+
+      # Run the review using the MR diff
+      set +e
+      REVIEW_OUTPUT=$(asec review "${MR_IID}" 2>&1)
+      REVIEW_EXIT=$?
+      set -e
+
+      echo "$REVIEW_OUTPUT"
+
+      # Post findings as MR note
+      if [ -n "$REVIEW_OUTPUT" ]; then
+        # Escape the output for JSON
+        ESCAPED_OUTPUT=$(echo "$REVIEW_OUTPUT" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))' 2>/dev/null || echo "\"Review completed.\"")
+
+        curl --silent --request POST \
+          --header "PRIVATE-TOKEN: ${TOKEN}" \
+          --header "Content-Type: application/json" \
+          --data "{\"body\": ${ESCAPED_OUTPUT}}" \
+          "${CI_API_V4_URL}/projects/${PROJECT_ID}/merge_requests/${MR_IID}/notes" \
+          > /dev/null 2>&1 || echo "Warning: Could not post MR note."
+      fi
+
+      # Fail the job if the review found issues above threshold
+      if [ "$REVIEW_EXIT" -ne 0 ]; then
+        echo "Security review found issues exceeding the severity threshold (${ASEC_SEVERITY_THRESHOLD})."
+        exit 1
+      fi
+  allow_failure:
+    exit_codes:
+      - 1

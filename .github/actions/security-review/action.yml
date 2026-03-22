@@ -1,0 +1,108 @@
+name: 'AugmentaSec Security Review'
+description: 'AI-powered security review for pull requests (alternative location)'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  github-token:
+    description: 'GitHub token for posting reviews and accessing PR data'
+    required: true
+    default: ${{ github.token }}
+  severity-threshold:
+    description: 'Minimum severity to report (critical, high, medium, low, informational)'
+    required: false
+    default: 'low'
+  config-path:
+    description: 'Path to asec config file'
+    required: false
+    default: ''
+  llm-provider:
+    description: 'LLM provider/model string (e.g. gemini/gemini-2.5-flash)'
+    required: false
+    default: ''
+  llm-api-key:
+    description: 'API key for the LLM provider'
+    required: false
+    default: ''
+
+outputs:
+  findings-count:
+    description: 'Total number of security findings'
+    value: ${{ steps.review.outputs.findings-count }}
+  approved:
+    description: 'Whether the review approved the PR'
+    value: ${{ steps.review.outputs.approved }}
+  summary:
+    description: 'Summary of the review results'
+    value: ${{ steps.review.outputs.summary }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install AugmentaSec
+      shell: bash
+      run: npm install -g augmenta-sec
+
+    - name: Extract PR number
+      id: pr
+      shell: bash
+      run: |
+        if [ -n "${{ github.event.pull_request.number }}" ]; then
+          echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "::error::This action must be triggered on a pull_request event."
+          exit 1
+        fi
+
+    - name: Run security review
+      id: review
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        ASEC_SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
+        ASEC_CONFIG_PATH: ${{ inputs.config-path }}
+        ASEC_LLM_PROVIDER: ${{ inputs.llm-provider }}
+        ASEC_LLM_API_KEY: ${{ inputs.llm-api-key }}
+      run: |
+        ARGS="${{ steps.pr.outputs.number }}"
+
+        # Set LLM provider env vars based on provider string
+        if [ -n "$ASEC_LLM_PROVIDER" ]; then
+          PROVIDER_PREFIX=$(echo "$ASEC_LLM_PROVIDER" | cut -d'/' -f1)
+          case "$PROVIDER_PREFIX" in
+            gemini)    export GEMINI_API_KEY="$ASEC_LLM_API_KEY" ;;
+            anthropic) export ANTHROPIC_API_KEY="$ASEC_LLM_API_KEY" ;;
+            openai)    export OPENAI_API_KEY="$ASEC_LLM_API_KEY" ;;
+            mistral)   export MISTRAL_API_KEY="$ASEC_LLM_API_KEY" ;;
+          esac
+        fi
+
+        set +e
+        OUTPUT=$(asec review "$ARGS" 2>&1)
+        EXIT_CODE=$?
+        set -e
+
+        echo "$OUTPUT"
+
+        # Extract findings count from output
+        FINDINGS=$(echo "$OUTPUT" | grep -oP 'Findings:\s+\K\d+' || echo "0")
+        APPROVED=$(echo "$OUTPUT" | grep -q "APPROVED" && echo "true" || echo "false")
+
+        echo "findings-count=$FINDINGS" >> "$GITHUB_OUTPUT"
+        echo "approved=$APPROVED" >> "$GITHUB_OUTPUT"
+        echo "summary<<EOF" >> "$GITHUB_OUTPUT"
+        echo "$OUTPUT" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
+
+        # Fail the check based on severity threshold
+        if [ "$EXIT_CODE" -ne 0 ]; then
+          echo "::error::Security review found issues exceeding the severity threshold."
+          exit 1
+        fi
