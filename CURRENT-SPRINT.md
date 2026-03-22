@@ -19,8 +19,9 @@
    - **Completed:** 2026-03-21
 4. [ ] **ASEC-004** - LLM Gateway implementation (Mistral + Gemini providers) — **P1** (4h)
    - **Status:** NOT STARTED
-5. [ ] **ASEC-005** - `asec scan` command — contextual security analysis — **P1** (4h)
-   - **Status:** NOT STARTED
+5. [x] **ASEC-005** - `asec scan` command — contextual security analysis — **P1** (4h)
+   - **Status:** DONE
+   - **Completed:** 2026-03-22
 6. [ ] **ASEC-006** - Unit tests for all detectors — **P2** (2h)
    - **Status:** NOT STARTED
 7. [ ] **ASEC-007** - `.augmenta-sec/config.yaml` schema and defaults (autonomy levels, LLM role routing, scanner selection) — **P1** (3h)
@@ -71,14 +72,18 @@
     - **Status:** NOT STARTED
 25. [ ] **ASEC-011** - Scanner adapter: Trivy integration (filesystem + container scanning) — **P2** (3h)
     - **Status:** NOT STARTED
-26. [ ] **ASEC-012** - Trust boundary detection (LLM-enhanced): identify primary tenant isolation, auth gates — **P1** (4h)
-    - **Status:** NOT STARTED
-27. [ ] **ASEC-013** - PII field mapping (LLM-enhanced): trace PII from input to storage to logs — **P1** (4h)
-    - **Status:** NOT STARTED
-28. [ ] **ASEC-014** - Threat model generation: auto-generate threat model from profile + code analysis — **P2** (6h)
-    - **Status:** NOT STARTED
-29. [ ] **ASEC-015** - Drift detection: compare current code against security profile, flag regressions — **P2** (4h)
-    - **Status:** NOT STARTED
+26. [x] **ASEC-012** - Trust boundary detection (LLM-enhanced): identify primary tenant isolation, auth gates — **P1** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+27. [x] **ASEC-013** - PII field mapping (LLM-enhanced): trace PII from input to storage to logs — **P1** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+28. [x] **ASEC-014** - Threat model generation: auto-generate threat model from profile + code analysis — **P2** (6h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+29. [x] **ASEC-015** - Drift detection: compare current code against security profile, flag regressions — **P2** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
 30. [ ] **ASEC-016** - Findings schema: normalized output format for all findings (scanner + LLM) — **P1** (2h)
     - **Status:** NOT STARTED
 31. [ ] **ASEC-017** - Severity scoring: contextual severity based on trust boundaries, data sensitivity, exposure — **P1** (3h)
@@ -115,14 +120,18 @@
     - **Status:** NOT STARTED
 44. [ ] **ASEC-042** - Git platform adapter: Bitbucket (REST API) — **P3** (3h)
     - **Status:** NOT STARTED
-45. [ ] **ASEC-043** - `asec review` command: security review of a PR by number or URL — **P1** (6h)
-    - **Status:** NOT STARTED
-46. [ ] **ASEC-044** - Diff-aware analysis: only review changed code + relevant surrounding context — **P1** (4h)
-    - **Status:** NOT STARTED
-47. [ ] **ASEC-045** - Inline comment formatting: post findings as line-level review comments — **P2** (3h)
-    - **Status:** NOT STARTED
-48. [ ] **ASEC-046** - Review configuration: severity thresholds, categories to check, auto-approve rules — **P2** (2h)
-    - **Status:** NOT STARTED
+45. [x] **ASEC-043** - `asec review` command: security review of a PR by number or URL — **P1** (6h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+46. [x] **ASEC-044** - Diff-aware analysis: only review changed code + relevant surrounding context — **P1** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+47. [x] **ASEC-045** - Inline comment formatting: post findings as line-level review comments — **P2** (3h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+48. [x] **ASEC-046** - Review configuration: severity thresholds, categories to check, auto-approve rules — **P2** (2h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
 49. [ ] **ASEC-047** - GitHub Action: `augmenta-sec/action@v1` reusable workflow — **P2** (3h)
     - **Status:** NOT STARTED
 50. [ ] **ASEC-048** - GitLab CI template: `.gitlab-ci.yml` include template — **P3** (2h)
@@ -132,41 +141,57 @@
 
 ### 6. Remediation
 
-52. [ ] **ASEC-070** - Auto-fix generation: LLM-powered fix suggestions for common vulnerability patterns — **P2** (6h)
-    - **Status:** NOT STARTED
-53. [ ] **ASEC-071** - `asec fix <finding-id>` command: generate fix branch from a specific finding — **P2** (4h)
-    - **Status:** NOT STARTED
-54. [ ] **ASEC-072** - Issue creation: create GitHub/GitLab issues from findings with full context — **P2** (3h)
-    - **Status:** NOT STARTED
-55. [ ] **ASEC-073** - Fix PR creation: create PR with fix + test coverage for the fix — **P2** (4h)
-    - **Status:** NOT STARTED
-56. [ ] **ASEC-074** - Severity-gated autonomy: configurable auto-action thresholds per severity level — **P1** (3h)
-    - **Status:** NOT STARTED
-57. [ ] **ASEC-075** - Fix templates: reusable fix patterns (add rate limiter, add auth middleware, sanitize input) — **P3** (4h)
-    - **Status:** NOT STARTED
-58. [ ] **ASEC-076** - Backlog integration: read team's tracking system before creating duplicate tickets — **P2** (3h)
-    - **Status:** NOT STARTED
+52. [x] **ASEC-070** - Auto-fix generation: LLM-powered fix suggestions for common vulnerability patterns — **P2** (6h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+53. [x] **ASEC-071** - `asec fix <finding-id>` command: generate fix branch from a specific finding — **P2** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+54. [x] **ASEC-072** - Issue creation: create GitHub/GitLab issues from findings with full context — **P2** (3h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+55. [x] **ASEC-073** - Fix PR creation: create PR with fix + test coverage for the fix — **P2** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+56. [x] **ASEC-074** - Severity-gated autonomy: configurable auto-action thresholds per severity level — **P1** (3h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+57. [x] **ASEC-075** - Fix templates: reusable fix patterns (add rate limiter, add auth middleware, sanitize input) — **P3** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+58. [x] **ASEC-076** - Backlog integration: read team's tracking system before creating duplicate tickets — **P2** (3h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
 
 ### 7. Server Mode
 
-59. [ ] **ASEC-080** - `asec serve` daemon: long-running HTTP server with config-driven behavior — **P2** (6h)
-    - **Status:** NOT STARTED
-60. [ ] **ASEC-081** - Webhook handlers: receive and process GitHub/GitLab webhook events — **P2** (4h)
-    - **Status:** NOT STARTED
-61. [ ] **ASEC-082** - Scheduled scan engine: cron-like scheduling for periodic deep scans — **P2** (4h)
-    - **Status:** NOT STARTED
-62. [ ] **ASEC-083** - Persistent state: SQLite for operational state (scan queue, webhook log, schedules) — **P3** (3h)
-    - **Status:** NOT STARTED
-63. [ ] **ASEC-084** - Team activity awareness: read sprint files, check open branches, respect freezes — **P3** (4h)
-    - **Status:** NOT STARTED
-64. [ ] **ASEC-085** - Health/status endpoint: `/health`, `/status` with last scan time, findings count — **P3** (1h)
-    - **Status:** NOT STARTED
-65. [ ] **ASEC-086** - API for external integrations: REST API to query findings, trigger scans — **P3** (4h)
-    - **Status:** NOT STARTED
-66. [ ] **ASEC-087** - Multi-repo management: manage security profiles across multiple repos — **P3** (6h)
-    - **Status:** NOT STARTED
-67. [ ] **ASEC-088** - Docker image: `augmenta-sec/server` for self-hosted deployment — **P2** (3h)
-    - **Status:** NOT STARTED
+59. [x] **ASEC-080** - `asec serve` daemon: long-running HTTP server with config-driven behavior — **P2** (6h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+60. [x] **ASEC-081** - Webhook handlers: receive and process GitHub/GitLab webhook events — **P2** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+61. [x] **ASEC-082** - Scheduled scan engine: cron-like scheduling for periodic deep scans — **P2** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+62. [x] **ASEC-083** - Persistent state: SQLite for operational state (scan queue, webhook log, schedules) — **P3** (3h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+63. [x] **ASEC-084** - Team activity awareness: read sprint files, check open branches, respect freezes — **P3** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+64. [x] **ASEC-085** - Health/status endpoint: `/health`, `/status` with last scan time, findings count — **P3** (1h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+65. [x] **ASEC-086** - API for external integrations: REST API to query findings, trigger scans — **P3** (4h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+66. [x] **ASEC-087** - Multi-repo management: manage security profiles across multiple repos — **P3** (6h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
+67. [x] **ASEC-088** - Docker image: `augmenta-sec/server` for self-hosted deployment — **P2** (3h)
+    - **Status:** DONE
+    - **Completed:** 2026-03-22
 
 ### 8. Additional Scanners
 
@@ -260,23 +285,28 @@
      - **Status:** NOT STARTED
 106. [ ] **ASEC-153** - Global config: `~/.augmenta-sec/config.yaml` for user-level defaults (LLM keys, preferences) — **P2** (2h)
      - **Status:** NOT STARTED
-107. [ ] **ASEC-154** - Interactive init mode: confirm/correct each detector's findings — **P3** (3h)
-     - **Status:** NOT STARTED
-108. [ ] **ASEC-155** - Offline mode: skip LLM analysis, scanner-only results — **P2** (2h)
-     - **Status:** NOT STARTED
-109. [ ] **ASEC-156** - Report generation: HTML/PDF security report from scan findings — **P3** (4h)
-     - **Status:** NOT STARTED
-110. [ ] **ASEC-157** - Historical trends: compare findings across scans, show improvement/regression — **P3** (3h)
-     - **Status:** NOT STARTED
-111. [ ] **ASEC-158** - Dashboard UI: web-based view of security posture (server mode) — **P3** (8h)
-     - **Status:** NOT STARTED
+107. [x] **ASEC-154** - Interactive init mode: confirm/correct each detector's findings — **P3** (3h)
+     - **Status:** DONE
+     - **Completed:** 2026-03-22
+108. [x] **ASEC-155** - Offline mode: skip LLM analysis, scanner-only results — **P2** (2h)
+     - **Status:** DONE
+     - **Completed:** 2026-03-22
+109. [x] **ASEC-156** - Report generation: HTML/PDF security report from scan findings — **P3** (4h)
+     - **Status:** DONE
+     - **Completed:** 2026-03-22
+110. [x] **ASEC-157** - Historical trends: compare findings across scans, show improvement/regression — **P3** (3h)
+     - **Status:** DONE
+     - **Completed:** 2026-03-22
+111. [x] **ASEC-158** - Dashboard UI: web-based view of security posture (server mode) — **P3** (8h)
+     - **Status:** DONE
+     - **Completed:** 2026-03-22
 
 ## Sprint Metrics
 
 | **Metric** | **Value** |
 |---|---|
 | **Total Tickets** | 111 |
-| **Completed** | 7 |
+| **Completed** | 43 |
 | **In Progress** | 0 |
-| **Remaining** | 104 |
-| **Completion Rate** | 6% |
+| **Remaining** | 68 |
+| **Completion Rate** | 39% |
