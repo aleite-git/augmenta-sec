@@ -297,3 +297,30 @@ export function deduplicateFindings(
     },
   };
 }
+
+// ASEC-018
+export interface DeduplicatedFinding extends Finding {
+  duplicateCount: number;
+  mergedSources: string[];
+}
+export function deduplicateWithCounts(findings: Finding[], strategy: DeduplicationStrategy = 'fuzzy'): DeduplicatedFinding[] {
+  const result = deduplicateFindings(findings, strategy);
+  const groupMap = new Map<string, {count: number; sources: string[]}>();
+  for (const group of result.duplicates) {
+    const all = [group.canonical, ...group.duplicates];
+    const sources = _collectSources(all);
+    for (const f of all) groupMap.set(f.id, {count: all.length, sources});
+  }
+  const enriched: DeduplicatedFinding[] = result.unique.map((f) => {
+    const info = groupMap.get(f.id);
+    return {...f, duplicateCount: info?.count ?? 1, mergedSources: info?.sources ?? _collectSources([f])};
+  });
+  const sevOrder: Record<string, number> = {critical: 5, high: 4, medium: 3, low: 2, informational: 1};
+  enriched.sort((a, b) => (sevOrder[b.severity] ?? 0) - (sevOrder[a.severity] ?? 0));
+  return enriched;
+}
+function _collectSources(findings: Finding[]): string[] {
+  const sources = new Set<string>();
+  for (const f of findings) { if (f.scanner) sources.add(f.scanner); else if (f.source) sources.add(f.source); }
+  return [...sources];
+}

@@ -369,3 +369,25 @@ export function generateComplianceReport(
     };
   });
 }
+
+// ASEC-019
+export function mapToOWASP(finding: Finding): ComplianceMapping[] { return _mapForFw(finding, 'owasp-top-10'); }
+export function mapToCWE(finding: Finding): ComplianceMapping[] { return _mapForFw(finding, 'cwe-top-25'); }
+export function mapToSANS25(finding: Finding): ComplianceMapping[] { return _mapForFw(finding, 'sans-25'); }
+function _mapForFw(finding: Finding, framework: ComplianceFramework): ComplianceMapping[] {
+  const mappings: ComplianceMapping[] = [];
+  for (const item of getFrameworkItems(framework)) {
+    if (matchesByCwe(finding, item) || matchesByOwaspCategory(finding, item, framework) || matchesByKeyword(finding, item)) {
+      mappings.push({framework, id: item.id, name: item.name, description: item.description});
+    }
+  }
+  return mappings;
+}
+export interface ComplianceSummary { reports: ComplianceReport[]; totalFindings: number; totalCovered: number; totalItems: number; coveragePercent: number; }
+export function complianceReport(findings: Finding[]): ComplianceSummary {
+  const frameworks: ComplianceFramework[] = ['owasp-top-10', 'cwe-top-25', 'sans-25'];
+  const reports = generateComplianceReport(findings, frameworks);
+  let totalCovered = 0, totalItems = 0;
+  for (const r of reports) { totalCovered += r.coveredItems.length; totalItems += r.coveredItems.length + r.uncoveredItems.length; }
+  return {reports, totalFindings: findings.length, totalCovered, totalItems, coveragePercent: totalItems > 0 ? Math.round((totalCovered / totalItems) * 100) : 0};
+}
