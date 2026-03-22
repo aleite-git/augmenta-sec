@@ -32,8 +32,10 @@ export function createCli(): Command {
     .command('review')
     .description('Review a pull request for security issues')
     .argument('[pr]', 'PR number or URL')
-    .action(async (pr?: string) => {
-      await reviewCommand(pr);
+    .option('--all', 'Review all open PRs in the repository')
+    .option('--concurrency <n>', 'Max parallel reviews when using --all (default: 3)')
+    .action(async (pr: string | undefined, opts: {all?: boolean; concurrency?: string}) => {
+      await reviewCommand(pr, opts);
     });
 
   program
