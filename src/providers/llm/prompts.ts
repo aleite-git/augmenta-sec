@@ -12,6 +12,7 @@ export interface Prompt {
   description: string;
   template: string;
   variables: string[];
+  expectedFormat?: string;
 }
 
 /** Read-only library for retrieving and rendering prompts. */
@@ -173,8 +174,7 @@ const BUILTIN_PROMPTS: Prompt[] = [
       '- Current protections (if any)',
       '- Recommended protections',
       'Return as structured JSON.',
-    ].join('
-'),
+    ].join('\n'),
     variables: ['project', 'architecture', 'dataFlows'],
     expectedFormat: 'JSON',
   },
@@ -196,8 +196,7 @@ const BUILTIN_PROMPTS: Prompt[] = [
       '- sensitive (health, financial, biometric)',
       'Include the field name, location, and confidence.',
       'Return as structured JSON.',
-    ].join('
-'),
+    ].join('\n'),
     variables: ['project', 'language', 'models'],
     expectedFormat: 'JSON',
   },
@@ -222,8 +221,7 @@ const BUILTIN_PROMPTS: Prompt[] = [
       '- Race conditions and TOCTOU issues',
       'For each finding: describe the issue, severity, line number, and fix.',
       'Return as structured JSON.',
-    ].join('
-'),
+    ].join('\n'),
     variables: ['file', 'language', 'code'],
     expectedFormat: 'JSON',
   },
