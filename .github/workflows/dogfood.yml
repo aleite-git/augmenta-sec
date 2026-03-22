@@ -1,0 +1,74 @@
+name: Dogfood
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Weekly on Monday at 06:00 UTC
+  pull_request:
+    paths:
+      - 'src/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dogfood:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+
+      - name: Run asec init (self-scan onboarding)
+        run: node dist/index.js init --non-interactive || true
+
+      - name: Run asec scan (self-scan)
+        id: scan
+        run: |
+          set +e
+          node dist/index.js scan . --format json > dogfood-results.json 2>&1
+          SCAN_EXIT=$?
+          echo "exit_code=$SCAN_EXIT" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Generate scan summary
+        id: summary
+        run: |
+          if [ -f dogfood-results.json ]; then
+            echo "## Dogfood Scan Results" > dogfood-summary.md
+            echo "" >> dogfood-summary.md
+            echo "Self-scan of the augmenta-sec codebase." >> dogfood-summary.md
+            echo "" >> dogfood-summary.md
+            echo '```json' >> dogfood-summary.md
+            head -200 dogfood-results.json >> dogfood-summary.md
+            echo '```' >> dogfood-summary.md
+          else
+            echo "## Dogfood Scan Results" > dogfood-summary.md
+            echo "" >> dogfood-summary.md
+            echo "No scan output file produced. Check the scan step logs." >> dogfood-summary.md
+          fi
+          echo "Scan exit code: ${{ steps.scan.outputs.exit_code }}" >> dogfood-summary.md
+
+      - name: Post results as job summary
+        run: cat dogfood-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post results as PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: dogfood
+          path: dogfood-summary.md
+
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dogfood-results
+          path: |
+            dogfood-results.json
+            dogfood-summary.md
+          retention-days: 14
