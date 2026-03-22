@@ -101,6 +101,70 @@ export function validateJsonResponse<T>(
   }
 }
 
+/** Minimal Zod-like schema interface. */
+interface SchemaLike<T> {
+  safeParse(data: unknown):
+    | {success: true; data: T}
+    | {success: false; error: {issues: Array<{path: Array<string | number>; message: string}>}};
+}
+
+/**
+ * Parses a JSON response from an LLM, handling markdown code fences and partial JSON.
+ */
+export function parseJsonResponse<T>(text: string): T {
+  const extracted = extractJsonFromMarkdown(text);
+  if (!extracted) throw new LLMValidationError('Empty response', text);
+  try { return JSON.parse(extracted) as T; } catch { /* fall through */ }
+  const firstBrace = extracted.indexOf('{');
+  const firstBracket = extracted.indexOf('[');
+  let start = -1;
+  let endChar = '';
+  if (firstBrace >= 0 && (firstBracket < 0 || firstBrace < firstBracket)) { start = firstBrace; endChar = '}'; }
+  else if (firstBracket >= 0) { start = firstBracket; endChar = ']'; }
+  if (start >= 0) {
+    const lastEnd = extracted.lastIndexOf(endChar);
+    if (lastEnd > start) {
+      const candidate = extracted.slice(start, lastEnd + 1);
+      try { return JSON.parse(candidate) as T; } catch { /* no recovery */ }
+    }
+  }
+  throw new LLMValidationError('Failed to parse JSON from LLM response: ' + extracted.slice(0, 100), text);
+}
+
+/**
+ * Validates an LLM response against a Zod-compatible schema.
+ */
+export function validateResponse<T>(response: string, schema: SchemaLike<T>): ValidationResult<T> {
+  let parsed: unknown;
+  try { parsed = parseJsonResponse(response); }
+  catch (err) { return {success: false, error: err instanceof LLMValidationError ? err.message : String(err)}; }
+  const result = schema.safeParse(parsed);
+  if (result.success) return {success: true, data: result.data};
+  const issues = result.error.issues.map((i) => i.path.join('.') + ': ' + i.message).join('; ');
+  return {success: false, error: 'Schema validation failed: ' + issues};
+}
+
+/**
+ * Retries an async function that produces a validated result.
+ */
+export async function retryWithValidation<T>(
+  fn: () => Promise<string>,
+  schema: SchemaLike<T>,
+  maxRetries: number = 2,
+): Promise<T> {
+  let lastError: Error = new Error('No attempts made');
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const raw = await fn();
+      const result = validateResponse(raw, schema);
+      if (result.success) return result.data;
+      lastError = new LLMValidationError(result.error, raw);
+    } catch (err) { lastError = err instanceof Error ? err : new Error(String(err)); }
+    if (attempt < maxRetries) { const delay = 100 * 2 ** attempt; await sleep(delay); }
+  }
+  throw new LLMRetryExhaustedError(maxRetries + 1, lastError);
+}
+
 /**
  * Generic retry wrapper with exponential backoff.
  *

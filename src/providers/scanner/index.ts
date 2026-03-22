@@ -2,10 +2,15 @@
  * Scanner adapters barrel export.
  */
 
-export {createSemgrepScanner} from './semgrep.js';
-export {createTrivyScanner} from './trivy.js';
-export {createNpmAuditScanner} from './npm-audit.js';
-export {createGitleaksScanner} from './gitleaks.js';
+export {createSemgrepScanner, parseSarifOutput} from './semgrep.js';
+export {createTrivyScanner, scanFilesystem, scanContainer} from './trivy.js';
+export {
+  createNpmAuditScanner,
+  detectPackageManager,
+  parseYarnAuditOutput,
+} from './npm-audit.js';
+export type {PackageManager} from './npm-audit.js';
+export {createGitleaksScanner, mapSecretSeverity} from './gitleaks.js';
 export {createCodeqlScanner} from './codeql.js';
 export {createPipAuditScanner} from './pip-audit.js';
 export {createBanditScanner} from './bandit.js';
@@ -20,4 +25,6 @@ export type {
   NormalizedFinding,
   ScanResult,
   SecurityScanner,
+  ScannerAdapter,
+  ScannerAdapterConfig,
 } from './types.js';

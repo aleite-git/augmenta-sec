@@ -24,11 +24,14 @@ export {
 export {createOpenAIProvider, OpenAIProviderError} from './openai.js';
 
 export type {Prompt, PromptLibrary} from './prompts.js';
-export {createPromptLibrary} from './prompts.js';
+export {createPromptLibrary, getPrompt, formatPrompt} from './prompts.js';
 
 export type {ValidationResult, RetryOptions} from './validation.js';
 export {
   validateJsonResponse,
+  parseJsonResponse,
+  validateResponse,
+  retryWithValidation,
   withRetry,
   extractJsonFromMarkdown,
   LLMValidationError,

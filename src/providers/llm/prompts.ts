@@ -154,6 +154,79 @@ const BUILTIN_PROMPTS: Prompt[] = [
     ].join('\n'),
     variables: ['vulnerability', 'file', 'language', 'code'],
   },
+  {
+    name: 'detect-trust-boundaries',
+    version: '1.0.0',
+    description: 'Identify trust boundaries in a codebase from data flow descriptions.',
+    template: [
+      'You are a security architect identifying trust boundaries.',
+      '',
+      'Project: {{project}}',
+      'Architecture: {{architecture}}',
+      'Data flows:',
+      '{{dataFlows}}',
+      '',
+      'Identify all trust boundaries where data crosses security domains.',
+      'For each boundary:',
+      '- Name and type (network, process, user-input, third-party)',
+      '- Data that crosses it',
+      '- Current protections (if any)',
+      '- Recommended protections',
+      'Return as structured JSON.',
+    ].join('
+'),
+    variables: ['project', 'architecture', 'dataFlows'],
+    expectedFormat: 'JSON',
+  },
+  {
+    name: 'map-pii-fields',
+    version: '1.0.0',
+    description: 'Map PII fields in data models and classify sensitivity.',
+    template: [
+      'You are a data privacy specialist performing PII mapping.',
+      '',
+      'Project: {{project}}',
+      'Data models:',
+      '{{models}}',
+      '',
+      'Identify all fields that contain or could contain PII.',
+      'For each field classify as:',
+      '- direct-identifier (name, email, SSN, phone)',
+      '- quasi-identifier (zip code, birth date, gender)',
+      '- sensitive (health, financial, biometric)',
+      'Include the field name, location, and confidence.',
+      'Return as structured JSON.',
+    ].join('
+'),
+    variables: ['project', 'language', 'models'],
+    expectedFormat: 'JSON',
+  },
+  {
+    name: 'review-code-security',
+    version: '1.0.0',
+    description: 'Comprehensive security code review for a file or module.',
+    template: [
+      'You are a senior security code reviewer.',
+      '',
+      'File: {{file}}',
+      'Language: {{language}}',
+      'Code:',
+      '{{code}}',
+      '',
+      'Perform a security-focused code review. Check for:',
+      '- Injection vulnerabilities (SQL, command, LDAP, XSS)',
+      '- Authentication and authorization issues',
+      '- Sensitive data exposure',
+      '- Insecure cryptography or randomness',
+      '- Error handling that leaks information',
+      '- Race conditions and TOCTOU issues',
+      'For each finding: describe the issue, severity, line number, and fix.',
+      'Return as structured JSON.',
+    ].join('
+'),
+    variables: ['file', 'language', 'code'],
+    expectedFormat: 'JSON',
+  },
 ];
 
 /**
@@ -199,4 +272,26 @@ export function createPromptLibrary(): PromptLibrary {
       return [...prompts.keys()];
     },
   };
+}
+
+
+/**
+ * Retrieves a prompt by name from the built-in library.
+ */
+export function getPrompt(name: string, _version?: string): Prompt | undefined {
+  return createPromptLibrary().get(name);
+}
+
+/**
+ * Fills template variables in a prompt template string.
+ */
+export function formatPrompt(
+  template: string,
+  variables: Record<string, string>,
+): string {
+  let rendered = template;
+  for (const [key, value] of Object.entries(variables)) {
+    rendered = rendered.replaceAll(`{{${key}}}`, value);
+  }
+  return rendered;
 }

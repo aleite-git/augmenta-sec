@@ -54,3 +54,25 @@ export interface SecurityScanner {
   /** Run the scan and return raw findings. */
   scan(target: ScanTarget): Promise<ScanResult>;
 }
+
+/**
+ * Scanner adapter configuration options.
+ * Passed to factory functions to customize scanner behavior.
+ */
+export interface ScannerAdapterConfig {
+  /** Custom rules or rule-sets to use (scanner-specific). */
+  rules?: string[];
+  /** Override the default scan timeout in milliseconds. */
+  timeout?: number;
+  /** Additional CLI flags to pass to the scanner binary. */
+  extraArgs?: string[];
+}
+
+/**
+ * Extended scanner interface with configuration support.
+ * Wraps SecurityScanner with optional config and helper methods.
+ */
+export interface ScannerAdapter extends SecurityScanner {
+  /** Scanner-specific configuration. */
+  config?: ScannerAdapterConfig;
+}

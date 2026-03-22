@@ -1,8 +1,8 @@
 /**
- * npm audit scanner adapter.
+ * npm/yarn/pnpm audit scanner adapter.
  *
- * Runs `npm audit --json` and parses vulnerability output.
- * npm audit exits with code 1 when vulnerabilities are found — this is not an error.
+ * Detects the active package manager by checking for lock files, then runs
+ * the appropriate audit command.
  */
 
 import {existsSync} from 'node:fs';
@@ -10,36 +10,36 @@ import {join} from 'node:path';
 
 import type {
   RawFinding,
+  ScannerAdapter,
+  ScannerAdapterConfig,
   ScanResult,
   ScanTarget,
-  SecurityScanner,
 } from './types.js';
 import {isBinaryAvailable, runCommand} from './utils.js';
 
-/** npm severity to RawFinding severity mapping. */
-function mapSeverity(
-  npmSeverity: string,
-): RawFinding['severity'] {
+const DEFAULT_TIMEOUT_MS = 60_000;
+
+function mapSeverity(npmSeverity: string): RawFinding['severity'] {
   switch (npmSeverity.toLowerCase()) {
-    case 'critical':
-      return 'critical';
-    case 'high':
-      return 'high';
-    case 'moderate':
-      return 'medium';
-    case 'low':
-      return 'low';
-    case 'info':
-      return 'informational';
-    default:
-      return 'informational';
+    case 'critical': return 'critical';
+    case 'high': return 'high';
+    case 'moderate': return 'medium';
+    case 'low': return 'low';
+    case 'info': return 'informational';
+    default: return 'informational';
   }
 }
 
-/**
- * npm audit v2 JSON format (npm 7+).
- * Uses the `vulnerabilities` object keyed by package name.
- */
+/** Supported package managers. */
+export type PackageManager = 'npm' | 'yarn' | 'pnpm';
+
+/** Detect which package manager is in use by examining lock files. */
+export function detectPackageManager(rootDir: string): PackageManager {
+  if (existsSync(join(rootDir, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (existsSync(join(rootDir, 'yarn.lock'))) return 'yarn';
+  return 'npm';
+}
+
 interface NpmAuditVulnerability {
   name: string;
   severity: string;
@@ -51,26 +51,47 @@ interface NpmAuditVulnerability {
 
 interface NpmAuditOutput {
   vulnerabilities?: Record<string, NpmAuditVulnerability>;
-  /** Legacy npm audit v1 format. */
-  advisories?: Record<
-    string,
-    {
-      id: number;
-      module_name: string;
-      severity: string;
-      title: string;
-      url: string;
-      overview?: string;
-      findings?: Array<{version: string; paths: string[]}>;
-    }
-  >;
+  advisories?: Record<string, {id: number; module_name: string; severity: string; title: string; url: string; overview?: string}>;
 }
 
-/** Create an npm audit scanner conforming to SecurityScanner. */
-export function createNpmAuditScanner(): SecurityScanner {
+interface YarnAuditAdvisory {
+  type: 'auditAdvisory' | 'auditSummary';
+  data: {advisory?: {id: number; module_name: string; severity: string; title: string; url: string; overview?: string; cves?: string[]}};
+}
+
+/** Parse yarn audit NDJSON output into RawFinding[]. */
+export function parseYarnAuditOutput(stdout: string): RawFinding[] {
+  const findings: RawFinding[] = [];
+  const lines = stdout.trim().split('\n').filter(Boolean);
+
+  for (const line of lines) {
+    let entry: YarnAuditAdvisory;
+    try { entry = JSON.parse(line) as YarnAuditAdvisory; } catch { continue; }
+    if (entry.type !== 'auditAdvisory' || !entry.data.advisory) continue;
+
+    const advisory = entry.data.advisory;
+    const cveId = advisory.cves?.[0];
+
+    findings.push({
+      ruleId: `yarn:${advisory.id}`,
+      message: advisory.title,
+      severity: mapSeverity(advisory.severity),
+      file: 'yarn.lock',
+      metadata: {moduleName: advisory.module_name, url: advisory.url, overview: advisory.overview, ...(cveId ? {cveId} : {})},
+    });
+  }
+
+  return findings;
+}
+
+/** Create an npm/yarn/pnpm audit scanner conforming to ScannerAdapter. */
+export function createNpmAuditScanner(config?: ScannerAdapterConfig): ScannerAdapter {
+  const timeout = config?.timeout ?? DEFAULT_TIMEOUT_MS;
+
   return {
     name: 'npm-audit',
     category: 'sca',
+    config,
 
     async isAvailable(): Promise<boolean> {
       return isBinaryAvailable('npm');
@@ -78,94 +99,61 @@ export function createNpmAuditScanner(): SecurityScanner {
 
     async scan(target: ScanTarget): Promise<ScanResult> {
       const start = Date.now();
+      const pm = detectPackageManager(target.rootDir);
 
-      // Require package-lock.json for npm audit to work
-      const lockPath = join(target.rootDir, 'package-lock.json');
+      const lockFileMap: Record<PackageManager, string> = {npm: 'package-lock.json', yarn: 'yarn.lock', pnpm: 'pnpm-lock.yaml'};
+      const lockFile = lockFileMap[pm];
+      const lockPath = join(target.rootDir, lockFile);
+
       if (!existsSync(lockPath)) {
-        return {
-          scanner: 'npm-audit',
-          category: 'sca',
-          findings: [],
-          duration: Date.now() - start,
-          error: 'No package-lock.json found in target directory',
-        };
+        return {scanner: 'npm-audit', category: 'sca', findings: [], duration: Date.now() - start, error: `No ${lockFile} found in target directory`};
       }
 
       try {
-        // npm audit exits 1 when vulnerabilities are found — not an error.
-        const result = await runCommand(
-          'npm',
-          ['audit', '--json'],
-          {cwd: target.rootDir, timeout: 60_000},
-        );
+        const args = ['audit', '--json'];
+        if (config?.extraArgs) args.push(...config.extraArgs);
 
-        const parsed: NpmAuditOutput = JSON.parse(result.stdout || '{}');
-        const findings: RawFinding[] = [];
+        const result = await runCommand(pm, args, {cwd: target.rootDir, timeout});
+        let findings: RawFinding[];
 
-        // npm v2 format (npm 7+): vulnerabilities object
-        if (parsed.vulnerabilities) {
-          for (const [name, vuln] of Object.entries(parsed.vulnerabilities)) {
-            const viaDetails = vuln.via
-              .filter(
-                (v): v is {title?: string; url?: string; source?: number} =>
-                  typeof v !== 'string',
-              )
-              .map(v => v.title)
-              .filter(Boolean);
+        if (pm === 'yarn') {
+          findings = parseYarnAuditOutput(result.stdout);
+        } else {
+          const parsed: NpmAuditOutput = JSON.parse(result.stdout || '{}');
 
-            const message =
-              viaDetails.length > 0
-                ? viaDetails.join('; ')
-                : `Vulnerability in ${name}`;
+          if (parsed.vulnerabilities) {
+            findings = [];
+            for (const [name, vuln] of Object.entries(parsed.vulnerabilities)) {
+              const viaDetails = vuln.via
+                .filter((v): v is {title?: string; url?: string; source?: number} => typeof v !== 'string')
+                .map(v => v.title)
+                .filter(Boolean);
 
-            findings.push({
-              ruleId: `npm:${name}`,
-              message,
-              severity: mapSeverity(vuln.severity),
+              findings.push({
+                ruleId: `npm:${name}`,
+                message: viaDetails.length > 0 ? viaDetails.join('; ') : `Vulnerability in ${name}`,
+                severity: mapSeverity(vuln.severity),
+                file: 'package-lock.json',
+                metadata: {packageName: name, range: vuln.range, fixAvailable: vuln.fixAvailable, effects: vuln.effects},
+              });
+            }
+          } else if (parsed.advisories) {
+            findings = Object.values(parsed.advisories).map(a => ({
+              ruleId: `npm:${a.id}`,
+              message: a.title,
+              severity: mapSeverity(a.severity),
               file: 'package-lock.json',
-              metadata: {
-                packageName: name,
-                range: vuln.range,
-                fixAvailable: vuln.fixAvailable,
-                effects: vuln.effects,
-              },
-            });
+              metadata: {moduleName: a.module_name, url: a.url, overview: a.overview},
+            }));
+          } else {
+            findings = [];
           }
         }
 
-        // Legacy npm v1 format: advisories object
-        if (parsed.advisories && findings.length === 0) {
-          for (const advisory of Object.values(parsed.advisories)) {
-            findings.push({
-              ruleId: `npm:${advisory.id}`,
-              message: advisory.title,
-              severity: mapSeverity(advisory.severity),
-              file: 'package-lock.json',
-              metadata: {
-                moduleName: advisory.module_name,
-                url: advisory.url,
-                overview: advisory.overview,
-              },
-            });
-          }
-        }
-
-        return {
-          scanner: 'npm-audit',
-          category: 'sca',
-          findings,
-          duration: Date.now() - start,
-        };
+        return {scanner: 'npm-audit', category: 'sca', findings, duration: Date.now() - start};
       } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : String(error);
-        return {
-          scanner: 'npm-audit',
-          category: 'sca',
-          findings: [],
-          duration: Date.now() - start,
-          error: message,
-        };
+        const message = error instanceof Error ? error.message : String(error);
+        return {scanner: 'npm-audit', category: 'sca', findings: [], duration: Date.now() - start, error: message};
       }
     },
   };
