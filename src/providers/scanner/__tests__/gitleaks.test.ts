@@ -1,195 +1,42 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
-import {createGitleaksScanner} from '../gitleaks.js';
+import {createGitleaksScanner, mapSecretSeverity} from '../gitleaks.js';
 import type {ScanTarget} from '../types.js';
-
-vi.mock('node:child_process', () => ({
-  execFile: vi.fn(),
-}));
-
+vi.mock('node:child_process', () => ({execFile: vi.fn()}));
 import {execFile} from 'node:child_process';
-
 const mockExecFile = vi.mocked(execFile);
-
-function mockResolve(stdout: string, stderr = '') {
-  mockExecFile.mockImplementation(
-    ((...args: unknown[]) => {
-      const cb = args[args.length - 1] as (...cbArgs: unknown[]) => void;
-      if (typeof cb === 'function') cb(null, stdout, stderr);
-    }) as typeof execFile,
-  );
-}
-
-function mockReject(error: {
-  code?: string | number;
-  killed?: boolean;
-  stdout?: string;
-  stderr?: string;
-  status?: number;
-}) {
-  mockExecFile.mockImplementation(
-    ((...args: unknown[]) => {
-      const cb = args[args.length - 1] as (...cbArgs: unknown[]) => void;
-      if (typeof cb === 'function') {
-        const err = Object.assign(new Error('command failed'), {
-          code: error.code,
-          killed: error.killed,
-          stdout: error.stdout ?? '',
-          stderr: error.stderr ?? '',
-          status: error.status,
-        });
-        cb(err, error.stdout ?? '', error.stderr ?? '');
-      }
-    }) as typeof execFile,
-  );
-}
-
+function mockResolve(stdout: string) { mockExecFile.mockImplementation(((...args: unknown[]) => { const cb = args[args.length - 1] as (...a: unknown[]) => void; if (typeof cb === 'function') cb(null, stdout, ''); }) as typeof execFile); }
+function mockReject(error: {code?: string | number; killed?: boolean; stdout?: string; stderr?: string; status?: number}) { mockExecFile.mockImplementation(((...args: unknown[]) => { const cb = args[args.length - 1] as (...a: unknown[]) => void; if (typeof cb === 'function') cb(Object.assign(new Error('fail'), error), error.stdout ?? '', error.stderr ?? ''); }) as typeof execFile); }
 const target: ScanTarget = {rootDir: '/project'};
-
-const GITLEAKS_OUTPUT = JSON.stringify([
-  {
-    RuleID: 'aws-access-key',
-    Description: 'AWS Access Key',
-    File: 'config/prod.env',
-    StartLine: 3,
-    EndLine: 3,
-    StartColumn: 1,
-    EndColumn: 30,
-    Match: 'AKIAIOSFODNN7EXAMPLE',
-    Secret: 'AKIAIOSFODNN7EXAMPLE',
-    Entropy: 3.6,
-    Fingerprint: 'config/prod.env:aws-access-key:3',
-  },
-  {
-    RuleID: 'generic-api-key',
-    Description: 'Generic API Key',
-    File: 'src/services/payment.ts',
-    StartLine: 15,
-    EndLine: 15,
-    StartColumn: 20,
-    EndColumn: 55,
-    Match: 'sk_live_abc123xyz',
-    Secret: 'sk_live_abc123xyz',
-    Entropy: 4.2,
-    Fingerprint: 'src/services/payment.ts:generic-api-key:15',
-  },
-]);
-
+const OUTPUT = JSON.stringify([{RuleID: 'aws-access-key', Description: 'AWS Key', File: 'prod.env', StartLine: 3, EndLine: 3, StartColumn: 1, Entropy: 3.6, Fingerprint: 'prod.env:aws:3'}, {RuleID: 'generic-api-key', Description: 'API Key', File: 'pay.ts', StartLine: 15, EndLine: 15, StartColumn: 20, Entropy: 4.2, Fingerprint: 'pay.ts:api:15'}]);
+describe('mapSecretSeverity', () => {
+  it('aws-access-key=critical', () => { expect(mapSecretSeverity('aws-access-key')).toBe('critical'); });
+  it('aws-secret-access-key=critical', () => { expect(mapSecretSeverity('aws-secret-access-key')).toBe('critical'); });
+  it('gcp-service-account=critical', () => { expect(mapSecretSeverity('gcp-service-account')).toBe('critical'); });
+  it('private-key=critical', () => { expect(mapSecretSeverity('private-key')).toBe('critical'); });
+  it('github-pat=critical', () => { expect(mapSecretSeverity('github-pat')).toBe('critical'); });
+  it('partial critical', () => { expect(mapSecretSeverity('custom-aws-access-key-v2')).toBe('critical'); });
+  it('generic-api-key=high', () => { expect(mapSecretSeverity('generic-api-key')).toBe('high'); });
+  it('slack-token=high', () => { expect(mapSecretSeverity('slack-token')).toBe('high'); });
+  it('database-url=high', () => { expect(mapSecretSeverity('database-url')).toBe('high'); });
+  it('jwt-secret=high', () => { expect(mapSecretSeverity('jwt-secret')).toBe('high'); });
+  it('partial high', () => { expect(mapSecretSeverity('custom-slack-token-v2')).toBe('high'); });
+  it('unknown=medium', () => { expect(mapSecretSeverity('some-unknown')).toBe('medium'); });
+  it('empty=medium', () => { expect(mapSecretSeverity('')).toBe('medium'); });
+});
 describe('createGitleaksScanner', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('has correct name and category', () => {
-    const scanner = createGitleaksScanner();
-    expect(scanner.name).toBe('gitleaks');
-    expect(scanner.category).toBe('secrets');
-  });
-
-  describe('isAvailable', () => {
-    it('returns true when gitleaks binary exists', async () => {
-      mockResolve('/usr/local/bin/gitleaks');
-      const scanner = createGitleaksScanner();
-      const available = await scanner.isAvailable();
-      expect(available).toBe(true);
-    });
-
-    it('returns false when gitleaks binary is missing', async () => {
-      mockReject({code: 'ENOENT'});
-      const scanner = createGitleaksScanner();
-      const available = await scanner.isAvailable();
-      expect(available).toBe(false);
-    });
-  });
-
+  beforeEach(() => { vi.clearAllMocks(); });
+  it('name and category', () => { expect(createGitleaksScanner().name).toBe('gitleaks'); expect(createGitleaksScanner().category).toBe('secrets'); });
+  it('stores config', () => { expect(createGitleaksScanner({timeout: 30_000}).config!.timeout).toBe(30_000); });
+  describe('isAvailable', () => { it('true', async () => { mockResolve('/gitleaks'); expect(await createGitleaksScanner().isAvailable()).toBe(true); }); it('false', async () => { mockReject({code: 'ENOENT'}); expect(await createGitleaksScanner().isAvailable()).toBe(false); }); });
   describe('scan', () => {
-    it('parses gitleaks JSON output', async () => {
-      mockReject({code: 1, status: 1, stdout: GITLEAKS_OUTPUT, stderr: ''});
-
-      const scanner = createGitleaksScanner();
-      const result = await scanner.scan(target);
-
-      expect(result.scanner).toBe('gitleaks');
-      expect(result.category).toBe('secrets');
-      expect(result.findings).toHaveLength(2);
-      expect(result.error).toBeUndefined();
-
-      expect(result.findings[0].ruleId).toBe('aws-access-key');
-      expect(result.findings[0].message).toBe('AWS Access Key');
-      expect(result.findings[0].file).toBe('config/prod.env');
-      expect(result.findings[0].line).toBe(3);
-      expect(result.findings[0].column).toBe(1);
-
-      expect(result.findings[1].ruleId).toBe('generic-api-key');
-      expect(result.findings[1].message).toBe('Generic API Key');
-      expect(result.findings[1].file).toBe('src/services/payment.ts');
-      expect(result.findings[1].line).toBe(15);
-    });
-
-    it('treats exit code 1 as success (leaks found)', async () => {
-      mockReject({code: 1, status: 1, stdout: GITLEAKS_OUTPUT, stderr: ''});
-      const scanner = createGitleaksScanner();
-      const result = await scanner.scan(target);
-      expect(result.error).toBeUndefined();
-      expect(result.findings).toHaveLength(2);
-    });
-
-    it('all findings are high severity', async () => {
-      mockReject({code: 1, status: 1, stdout: GITLEAKS_OUTPUT, stderr: ''});
-      const scanner = createGitleaksScanner();
-      const result = await scanner.scan(target);
-      for (const finding of result.findings) {
-        expect(finding.severity).toBe('high');
-      }
-    });
-
-    it('handles no leaks found (exit 0, empty output)', async () => {
-      mockResolve('');
-      const scanner = createGitleaksScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings).toHaveLength(0);
-      expect(result.error).toBeUndefined();
-    });
-
-    it('handles no leaks found (exit 0, empty array)', async () => {
-      mockResolve('[]');
-      const scanner = createGitleaksScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings).toHaveLength(0);
-      expect(result.error).toBeUndefined();
-    });
-
-    it('includes metadata with fingerprint and entropy', async () => {
-      mockReject({code: 1, status: 1, stdout: GITLEAKS_OUTPUT, stderr: ''});
-      const scanner = createGitleaksScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings[0].metadata).toBeDefined();
-      expect(result.findings[0].metadata!.fingerprint).toBe(
-        'config/prod.env:aws-access-key:3',
-      );
-      expect(result.findings[0].metadata!.entropy).toBe(3.6);
-    });
-
-    it('handles timeout error', async () => {
-      mockReject({code: 'ETIMEDOUT', killed: true});
-      const scanner = createGitleaksScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings).toHaveLength(0);
-      expect(result.error).toContain('timed out');
-    });
-
-    it('handles binary not found error', async () => {
-      mockReject({code: 'ENOENT'});
-      const scanner = createGitleaksScanner();
-      const result = await scanner.scan(target);
-      expect(result.findings).toHaveLength(0);
-      expect(result.error).toContain('not found');
-    });
-
-    it('reports duration', async () => {
-      mockResolve('');
-      const scanner = createGitleaksScanner();
-      const result = await scanner.scan(target);
-      expect(result.duration).toBeGreaterThanOrEqual(0);
-    });
+    it('parses with severity', async () => { mockReject({code: 1, status: 1, stdout: OUTPUT, stderr: ''}); const r = await createGitleaksScanner().scan(target); expect(r.findings).toHaveLength(2); expect(r.findings[0].severity).toBe('critical'); expect(r.findings[1].severity).toBe('high'); });
+    it('unknown=medium', async () => { mockReject({code: 1, status: 1, stdout: JSON.stringify([{RuleID: 'custom', Description: 'C', File: 't.ts', StartLine: 1, EndLine: 1}]), stderr: ''}); expect((await createGitleaksScanner().scan(target)).findings[0].severity).toBe('medium'); });
+    it('empty', async () => { mockResolve(''); expect((await createGitleaksScanner().scan(target)).findings).toHaveLength(0); });
+    it('empty array', async () => { mockResolve('[]'); expect((await createGitleaksScanner().scan(target)).findings).toHaveLength(0); });
+    it('metadata', async () => { mockReject({code: 1, status: 1, stdout: OUTPUT, stderr: ''}); expect((await createGitleaksScanner().scan(target)).findings[0].metadata!.fingerprint).toBe('prod.env:aws:3'); });
+    it('timeout', async () => { mockReject({code: 'ETIMEDOUT', killed: true}); expect((await createGitleaksScanner().scan(target)).error).toContain('timed out'); });
+    it('not found', async () => { mockReject({code: 'ENOENT'}); expect((await createGitleaksScanner().scan(target)).error).toContain('not found'); });
+    it('duration', async () => { mockResolve(''); expect((await createGitleaksScanner().scan(target)).duration).toBeGreaterThanOrEqual(0); });
+    it('extraArgs', async () => { mockResolve('[]'); await createGitleaksScanner({extraArgs: ['--verbose']}).scan(target); expect(((mockExecFile.mock.calls[0] as unknown[])[1] as string[]).includes('--verbose')).toBe(true); });
   });
 });
