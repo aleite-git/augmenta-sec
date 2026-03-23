@@ -38,6 +38,7 @@ function makeConfig(
       respect_freeze: true,
     },
     scanners: ['semgrep', 'trivy'],
+    custom_scanners: [],
     scan: {
       categories: ['auth', 'injection'],
       min_severity: 'low',

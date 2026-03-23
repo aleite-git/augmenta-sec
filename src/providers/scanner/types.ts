@@ -8,6 +8,8 @@ export interface ScanTarget {
   rootDir: string;
   files?: string[];
   image?: string;
+  /** Target URL for DAST scanners (e.g., OWASP ZAP). */
+  url?: string;
 }
 
 export interface RawFinding {
@@ -69,4 +71,24 @@ export interface ScannerAdapterConfig {
  */
 export interface ScannerAdapter extends SecurityScanner {
   config?: ScannerAdapterConfig;
+}
+
+// ---------------------------------------------------------------------------
+// Custom scanner plugin definitions (ASEC-108)
+// ---------------------------------------------------------------------------
+
+/** Definition for a command-based custom scanner. */
+export interface CommandScannerDef {
+  name: string;
+  command: string;
+  args?: string[];
+  outputFormat: 'sarif' | 'json';
+  category: ScannerCategory;
+  timeout?: number;
+}
+
+/** Definition for a module-based custom scanner plugin. */
+export interface ModuleScannerDef {
+  name: string;
+  module: string;
 }

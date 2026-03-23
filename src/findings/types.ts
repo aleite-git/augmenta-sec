@@ -91,6 +91,8 @@ export interface FindingsReport {
   target: string;
   summary: FindingsSummary;
   findings: Finding[];
+  /** Non-fatal warnings (e.g. scanner failures) surfaced during the scan. */
+  warnings?: string[];
 }
 
 // ---------------------------------------------------------------------------

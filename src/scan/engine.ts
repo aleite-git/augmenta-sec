@@ -30,35 +30,8 @@ import type {
   RawFinding,
   SecurityScanner,
 } from '../providers/scanner/types.js';
-import {
-  createSemgrepScanner,
-  createTrivyScanner,
-  createNpmAuditScanner,
-  createGitleaksScanner,
-  createCodeqlScanner,
-  createPipAuditScanner,
-  createBanditScanner,
-  createGosecScanner,
-  createCargoAuditScanner,
-} from '../providers/scanner/index.js';
+import {defaultRegistry} from '../providers/scanner/index.js';
 import {logger} from '../utils/logger.js';
-
-// ---------------------------------------------------------------------------
-// Scanner registry
-// ---------------------------------------------------------------------------
-
-/** Maps scanner name to its factory function. */
-const SCANNER_FACTORIES: Record<string, () => SecurityScanner> = {
-  semgrep: createSemgrepScanner,
-  trivy: createTrivyScanner,
-  'npm-audit': createNpmAuditScanner,
-  gitleaks: createGitleaksScanner,
-  codeql: createCodeqlScanner,
-  'pip-audit': createPipAuditScanner,
-  bandit: createBanditScanner,
-  gosec: createGosecScanner,
-  'cargo-audit': createCargoAuditScanner,
-};
 
 // ---------------------------------------------------------------------------
 // Profile loading
@@ -172,7 +145,7 @@ export async function resolveEnabledScanners(
   const scanners: SecurityScanner[] = [];
 
   for (const name of scannerNames) {
-    const factory = SCANNER_FACTORIES[name];
+    const factory = defaultRegistry.get(name);
     if (!factory) {
       logger.warn(`Unknown scanner: ${name} — skipping`);
       continue;
@@ -250,17 +223,20 @@ export async function runScan(
 
   // Step 4: Normalize raw findings
   const allFindings: Finding[] = [];
+  const warnings: string[] = [];
   for (const settled of scanResults) {
     if (settled.status === 'rejected') {
-      logger.error(`Scanner failed: ${String(settled.reason)}`);
+      const msg = `Scanner failed: ${String(settled.reason)}`;
+      logger.error(msg);
+      warnings.push(msg);
       continue;
     }
 
     const result = settled.value;
     if (result.error) {
-      logger.warn(
-        `${result.scanner} reported an error: ${result.error}`,
-      );
+      const msg = `${result.scanner} reported an error: ${result.error}`;
+      logger.warn(msg);
+      warnings.push(msg);
     }
 
     for (const raw of result.findings) {
@@ -302,6 +278,7 @@ export async function runScan(
     target: rootDir,
     summary: summarizeFindings(capped),
     findings: capped,
+    ...(warnings.length > 0 ? {warnings} : {}),
   };
 }
 

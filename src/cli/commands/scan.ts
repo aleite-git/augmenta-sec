@@ -11,6 +11,7 @@ import chalk from 'chalk';
 import {resolveConfig} from '../../config/index.js';
 import type {FindingsReport} from '../../findings/types.js';
 import {runScan} from '../../scan/engine.js';
+import {formatUserError} from '../../errors/index.js';
 import {logger} from '../../utils/logger.js';
 
 /** Prints a human-readable summary of the findings report to stdout. */
@@ -72,6 +73,15 @@ function printReport(report: FindingsReport): void {
     }
   }
 
+  // Warnings from scanner failures
+  if (report.warnings && report.warnings.length > 0) {
+    console.log();
+    console.log(chalk.bold.yellow('  Warnings'));
+    for (const w of report.warnings) {
+      logger.warn(w);
+    }
+  }
+
   console.log();
 
   if (summary.total === 0) {
@@ -104,17 +114,9 @@ export async function scanCommand(targetPath?: string): Promise<void> {
 
     printReport(report);
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : String(error);
-
-    if (message.includes('ENOENT') && message.includes('profile.yaml')) {
-      logger.error(
-        'No security profile found. Run `asec init` first to create one.',
-      );
-    } else {
-      logger.error(`Scan failed: ${message}`);
-    }
-
+    const userError = formatUserError(error);
+    logger.error(userError.message);
+    logger.info(`Suggestion: ${userError.suggestion}`);
     process.exitCode = 1;
   }
 }

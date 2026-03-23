@@ -33,6 +33,7 @@ function buildMockCtx(vfs: Record<string, string | null>) {
 
 const baseConfig: AugmentaSecConfig = {
   scanners: [],
+  custom_scanners: [],
   scan: {categories: [], min_severity: 'low', max_findings: 100},
   llm: {triage: 'none/none', analysis: 'none/none', reasoning: 'none/none'},
   output: {format: 'json', verbosity: 'quiet'},

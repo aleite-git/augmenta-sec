@@ -1,9 +1,14 @@
-import {resolve} from 'node:path';
+import {resolve, join} from 'node:path';
 import {existsSync} from 'node:fs';
+import {readFile} from 'node:fs/promises';
 import chalk from 'chalk';
+import {parse as parseYaml} from 'yaml';
 import {logger} from '../../utils/logger.js';
 import {runDiscovery} from '../../discovery/engine.js';
 import {writeProfile} from '../../discovery/profile-writer.js';
+import {mergeProfiles} from '../../discovery/profile-merge.js';
+import type {MergeConflict} from '../../discovery/profile-merge.js';
+import {formatUserError} from '../../errors/index.js';
 import type {SecurityProfile} from '../../discovery/types.js';
 
 export async function initCommand(targetPath?: string): Promise<void> {
@@ -11,7 +16,8 @@ export async function initCommand(targetPath?: string): Promise<void> {
 
   if (!existsSync(rootDir)) {
     logger.error(`Target directory does not exist: ${rootDir}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   console.log();
@@ -20,14 +26,34 @@ export async function initCommand(targetPath?: string): Promise<void> {
   logger.detail('Target', rootDir);
   console.log();
 
-  // Run discovery
-  const {profile, duration, warnings} = await runDiscovery(rootDir);
+  try {
+    // Run discovery
+    const {profile: freshProfile, duration, warnings} = await runDiscovery(rootDir);
 
-  // Write profile
-  const profilePath = await writeProfile(profile, rootDir);
+    // Merge with existing profile if present
+    let profile = freshProfile;
+    let conflicts: MergeConflict[] = [];
+    const existingProfilePath = join(rootDir, '.augmenta-sec', 'profile.yaml');
+    if (existsSync(existingProfilePath)) {
+      logger.info('Existing profile found — merging...');
+      const existingYaml = await readFile(existingProfilePath, 'utf-8');
+      const existingProfile = parseYaml(existingYaml) as SecurityProfile;
+      const mergeResult = mergeProfiles(existingProfile, freshProfile);
+      profile = mergeResult.profile;
+      conflicts = mergeResult.conflicts;
+    }
 
-  // Print summary
-  printSummary(profile, duration, warnings, profilePath);
+    // Write profile
+    const profilePath = await writeProfile(profile, rootDir);
+
+    // Print summary
+    printSummary(profile, duration, warnings, profilePath, conflicts);
+  } catch (error: unknown) {
+    const userError = formatUserError(error);
+    logger.error(userError.message);
+    logger.info(`Suggestion: ${userError.suggestion}`);
+    process.exitCode = 1;
+  }
 }
 
 function printSummary(
@@ -35,6 +61,7 @@ function printSummary(
   duration: number,
   warnings: string[],
   profilePath: string,
+  conflicts: MergeConflict[] = [],
 ): void {
   logger.header('Discovery Results');
 
@@ -127,6 +154,15 @@ function printSummary(
   console.log(chalk.bold('  Trust Boundaries & PII'));
   if (p.trustBoundaries.candidates.length === 0 && p.piiFields.candidates.length === 0) {
     console.log(chalk.gray('  [llm] Run `asec scan --deep` to detect trust boundaries and PII fields'));
+  }
+
+  // Merge conflicts
+  if (conflicts.length > 0) {
+    console.log();
+    console.log(chalk.bold.yellow('  Merge Conflicts'));
+    for (const c of conflicts) {
+      logger.warn(`${c.path}: ${c.reason} (${c.resolution})`);
+    }
   }
 
   // Warnings

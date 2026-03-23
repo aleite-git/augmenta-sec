@@ -101,6 +101,33 @@ export const outputSchema = z
   .optional();
 
 // ---------------------------------------------------------------------------
+// Custom scanner definitions (ASEC-108)
+// ---------------------------------------------------------------------------
+
+const commandScannerDefSchema = z.object({
+  name: z.string().min(1),
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  output_format: z.enum(['sarif', 'json']).default('sarif'),
+  category: z.enum(['sast', 'dast', 'sca', 'container', 'secrets']),
+  timeout: z.number().int().min(0).optional(),
+});
+
+const moduleScannerDefSchema = z.object({
+  name: z.string().min(1),
+  module: z.string().min(1),
+});
+
+export const customScannerDefSchema = z.union([
+  commandScannerDefSchema,
+  moduleScannerDefSchema,
+]);
+
+export const customScannersSchema = z
+  .array(customScannerDefSchema)
+  .optional();
+
+// ---------------------------------------------------------------------------
 // Top-level config schema
 // ---------------------------------------------------------------------------
 
@@ -109,6 +136,7 @@ export const configSchema = z
     llm: llmSchema,
     autonomy: autonomySchema,
     scanners: scannersSchema,
+    custom_scanners: customScannersSchema,
     scan: scanSchema,
     review: reviewSchema,
     output: outputSchema,
@@ -143,6 +171,7 @@ export interface AugmentaSecConfig {
     respect_freeze: boolean;
   };
   scanners: string[];
+  custom_scanners: Array<z.infer<typeof customScannerDefSchema>>;
   scan: {
     categories: string[];
     min_severity: Severity;

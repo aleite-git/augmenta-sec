@@ -27,6 +27,8 @@ export const DEFAULT_CONFIG: AugmentaSecConfig = {
 
   scanners: ['semgrep', 'trivy'],
 
+  custom_scanners: [],
+
   scan: {
     categories: [
       'auth',

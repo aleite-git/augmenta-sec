@@ -27,6 +27,7 @@ const SCANNER_NOT_FOUND_PATTERNS: Array<{pattern: RegExp; tool: string; installC
   {pattern: /cargo[- ]?audit/i, tool: 'cargo-audit', installCmd: 'cargo install cargo-audit'},
   {pattern: /pip[- ]?audit/i, tool: 'pip-audit', installCmd: 'pip install pip-audit'},
   {pattern: /npm[- ]?audit/i, tool: 'npm audit', installCmd: 'npm is bundled with Node.js'},
+  {pattern: /zap/i, tool: 'OWASP ZAP', installCmd: 'see https://www.zaproxy.org/download/ or use Docker: docker pull zaproxy/zap-stable'},
 ];
 
 const LLM_ERROR_PATTERNS: Array<{pattern: RegExp; suggestion: string}> = [
